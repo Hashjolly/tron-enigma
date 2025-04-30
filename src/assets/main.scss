@@ -1,0 +1,27 @@
+@use './base.scss' as *;
+
+#app {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* Réinitialisation des styles de lien pour le thème TRON */
+a {
+  text-decoration: none;
+  transition: all 0.3s ease;
+}
+
+/* Suppression des styles qui limitent la largeur et centrent le contenu */
+@media (min-width: 1024px) {
+  body {
+    display: block;
+  }
+
+  #app {
+    display: block;
+    padding: 0;
+  }
+}

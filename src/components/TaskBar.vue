@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useAudioStore } from '@/stores/audioStore'
 
 const currentTime = ref(new Date().toLocaleTimeString())
 const currentDate = ref(new Date().toLocaleDateString())
+const audioStore = useAudioStore()
 
 // Define emits for parent communication
-const emit = defineEmits(['openTerminal', 'openGridAccess', 'openIdentityDisc', 'openLightCycle'])
+const emit = defineEmits(['openTerminal', 'openGridAccess', 'openIdentityDisc', 'openLightCycle', 'toggleAudio'])
 
 // Mettre à jour l'horloge
 setInterval(() => {
@@ -29,6 +31,15 @@ const openApp = (app: string) => {
       emit('openLightCycle')
       break
   }
+}
+
+// Handler for audio controls
+const toggleAudioPlayer = () => {
+  audioStore.togglePlayer()
+}
+
+const togglePlayPause = () => {
+  audioStore.togglePlay()
 }
 </script>
 
@@ -54,6 +65,12 @@ const openApp = (app: string) => {
       <div class="taskbar-item" @click="openApp('lightCycle')">
         <div class="taskbar-icon lightcycle-icon"></div>
         <div class="taskbar-tooltip">Light Cycle</div>
+      </div>
+      
+      <!-- New Audio Control -->
+      <div class="taskbar-item" @click="toggleAudioPlayer">
+        <div class="taskbar-icon audio-icon" :class="{ 'active': audioStore.isPlaying }"></div>
+        <div class="taskbar-tooltip">Audio Player</div>
       </div>
     </div>
     
@@ -181,6 +198,30 @@ const openApp = (app: string) => {
       height: 2px;
       background: var(--tron-blue);
       box-shadow: 0 0 5px var(--tron-blue);
+    }
+  }
+  
+  &.audio-icon {
+    position: relative;
+    
+    &::before {
+      content: "♪";
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: var(--tron-blue-light);
+      font-size: 16px;
+      font-weight: bold;
+    }
+    
+    &.active {
+      box-shadow: 0 0 8px var(--tron-blue), inset 0 0 10px var(--tron-blue);
+      
+      &::before {
+        color: #ffffff;
+        text-shadow: 0 0 5px var(--tron-blue-light);
+      }
     }
   }
 }

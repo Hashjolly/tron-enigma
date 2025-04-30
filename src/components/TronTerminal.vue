@@ -140,27 +140,29 @@ const addCommandToTerminal = () => {
   terminalContent.value.push(`> ${commandInput.value}`)
   
   // Ajouter des réponses en fonction de la commande
-  const command = commandInput.value.toLowerCase()
+  const command = commandInput.value.toUpperCase()
   
-  if (command.includes('help')) {
+  if (command.includes('HELP')) {
     terminalContent.value.push('Available commands:')
-    terminalContent.value.push('- help: Display this help')
-    terminalContent.value.push('- clear: Clear terminal')
-    terminalContent.value.push('- sys info: Display system information')
-    terminalContent.value.push('- access grid: Connect to the Grid')
-  } else if (command.includes('clear')) {
+    terminalContent.value.push('- HELP: Display this help')
+    terminalContent.value.push('- CLEAR: Clear terminal')
+    terminalContent.value.push('- SYS INFO: Display system information')
+    terminalContent.value.push('- ACCESS GRID: Connect to the Grid')
+    terminalContent.value.push('- LOG <USER>: Connect to the Grid')
+    terminalContent.value.push('- LOCATE <PROGRAM>: Locate the program of your choice')
+  } else if (command.includes('CLEAR')) {
     terminalContent.value = []
-  } else if (command.includes('sys info')) {
+  } else if (command.includes('SYS INFO')) {
     terminalContent.value.push('TRON OS v1.0.0')
     terminalContent.value.push('CPU: ENCOM Quantum 9000')
     terminalContent.value.push('Memory: 128TB Quantum RAM')
     terminalContent.value.push('Grid Access: Enabled')
-  } else if (command.includes('access grid')) {
+  } else if (command.includes('ACCESS GRID')) {
     terminalContent.value.push('Connecting to the Grid...')
     terminalContent.value.push('WARNING: User digitization process required')
     terminalContent.value.push('Initiating laser sequence...')
   } else {
-    terminalContent.value.push('Command not recognized. Type "help" for available commands')
+    terminalContent.value.push('Command not recognized. Type "HELP" for available commands')
   }
   
   // Ajouter au historique
@@ -232,7 +234,7 @@ onMounted(() => {
     terminalContent.value.push('Bienvenue, Vous êtes projeté dans une instance de simulation.')
     terminalContent.value.push('Mission : retrouver REMANENCE. Progression : 0%.')
     terminalContent.value.push('Chaque programme suit une fonction. Mais certains... transcendent leur code.')
-    terminalContent.value.push('Ready for input. Type "help" for available commands')
+    terminalContent.value.push('Ready for input. Type "HELP" for available commands')
   }, 1500)
 })
 

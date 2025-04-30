@@ -156,50 +156,10 @@ const seekAudio = (event: MouseEvent) => {
 const toggleExpand = () => {
   isExpanded.value = !isExpanded.value
 }
-
-// Fonctions de tri et de réorganisation
-const isSortMode = ref(false)
-
-const toggleSortMode = () => {
-  isSortMode.value = !isSortMode.value
-}
-
-// Empêchons la lecture automatique lors du déplacement des pistes
-const moveTrackUp = (index: number) => {
-  // Empêcher la propagation d'événements qui déclencheraient l'audio
-  const wasPlaying = audioStore.isPlaying
-  
-  // Effectuer l'opération de tri
-  audioStore.moveTrack(index, 'up')
-  
-  // Éviter la relecture automatique si nécessaire
-  if (!wasPlaying) {
-    audioStore.pause()
-  }
-}
-
-const moveTrackDown = (index: number) => {
-  // Même logique que pour moveTrackUp
-  const wasPlaying = audioStore.isPlaying
-  
-  audioStore.moveTrack(index, 'down')
-  
-  if (!wasPlaying) {
-    audioStore.pause()
-  }
-}
-
-// Empêcher les déclenchements de lecture intempestifs en mode tri
-watch(isSortMode, (newValue) => {
-  // Si on entre en mode tri, optimisons l'UI pour éviter des événements de lecture inutiles
-  if (newValue) {
-    // Rien de spécial à faire ici, mais pourrait être utile pour des optimisations futures
-  }
-})
 </script>
 
 <template>
-  <div class="audio-player" :class="{ 'hidden': !audioStore.showPlayer, 'expanded': isExpanded, 'sort-mode': isSortMode }">
+  <div class="audio-player" :class="{ 'hidden': !audioStore.showPlayer, 'expanded': isExpanded }">
     <div v-if="audioStore.isLoading" class="loading-indicator">
       <div class="loading-spinner"></div>
       <div class="loading-text">Chargement des pistes...</div>
@@ -210,34 +170,7 @@ watch(isSortMode, (newValue) => {
       <span class="add-tracks-hint">Ajoutez des fichiers MP3 dans public/audio/music/</span>
     </div>
     
-    <div v-if="audioStore.tracks.length > 0 && isSortMode" class="playlist-manager">
-      <h3 class="playlist-title">Réorganiser les pistes</h3>
-      <div class="track-list">
-        <!-- Ajouter stopPropagation pour éviter les déclenchements d'audio -->
-        <div v-for="(track, index) in audioStore.tracks" 
-             :key="track.id" 
-             class="track-item" 
-             :class="{ 'active': index === audioStore.currentTrackIndex }">
-          <div class="track-info">
-            <div class="track-title">{{ track.title }}</div>
-            <div class="track-artist">{{ track.artist }}</div>
-          </div>
-          <div class="track-controls">
-            <button @click.stop="moveTrackUp(index)" 
-                    class="track-btn up" 
-                    :disabled="index === 0">▲</button>
-            <button @click.stop="moveTrackDown(index)" 
-                    class="track-btn down" 
-                    :disabled="index === audioStore.tracks.length - 1">▼</button>
-          </div>
-        </div>
-      </div>
-      <div class="sort-actions">
-        <button @click="toggleSortMode" class="close-sort">Fermer</button>
-      </div>
-    </div>
-    
-    <div v-else class="audio-controls">
+    <div class="audio-controls">
       <div class="main-controls">
         <button @click="audioStore.previous" class="control-btn prev">
           <span>⏮</span>
@@ -279,10 +212,6 @@ watch(isSortMode, (newValue) => {
         <button @click="toggleExpand" class="control-btn expand">
           <span v-if="isExpanded">></span>
           <span v-else><</span>
-        </button>
-        <!-- Empêcher la propagation de l'événement click pour éviter les lectures audio intempestives -->
-        <button v-if="isExpanded" @click.stop="toggleSortMode" class="control-btn sort">
-          <span>≡</span>
         </button>
       </div>
     </div>
@@ -328,12 +257,6 @@ watch(isSortMode, (newValue) => {
   
   &.expanded {
     width: 400px;
-  }
-
-  &.sort-mode {
-    width: 400px;
-    height: auto;
-    max-height: 500px;
   }
 }
 
@@ -415,11 +338,6 @@ watch(isSortMode, (newValue) => {
     width: 40px;
     height: 40px;
     border-width: 2px;
-  }
-
-  &.sort {
-    font-size: 18px;
-    line-height: 0;
   }
 }
 
@@ -531,115 +449,5 @@ watch(isSortMode, (newValue) => {
     100% { box-shadow: 0 0 5px rgba(0, 204, 255, 0.4); }
   }
 }
-
-// Styles pour le gestionnaire de playlist
-.playlist-manager {
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-height: 400px;
-  overflow-y: auto;
-  
-  .playlist-title {
-    font-size: 14px;
-    color: var(--tron-blue-light);
-    text-shadow: 0 0 5px var(--tron-blue);
-    margin: 0;
-    padding: 5px 0;
-    text-align: center;
-    border-bottom: 1px solid rgba(0, 204, 255, 0.3);
-  }
-}
-
-.track-list {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.track-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 5px;
-  border-radius: 4px;
-  border: 1px solid rgba(0, 204, 255, 0.2);
-  background: rgba(0, 20, 40, 0.5);
-  
-  &.active {
-    border-color: var(--tron-blue);
-    background: rgba(0, 40, 80, 0.7);
-    box-shadow: 0 0 10px rgba(0, 204, 255, 0.4);
-  }
-  
-  .track-info {
-    overflow: hidden;
-    flex: 1;
-    
-    .track-title {
-      font-size: 13px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    
-    .track-artist {
-      font-size: 10px;
-      opacity: 0.8;
-    }
-  }
-  
-  .track-controls {
-    display: flex;
-    gap: 5px;
-    
-    .track-btn {
-      width: 24px;
-      height: 24px;
-      background: transparent;
-      border: 1px solid var(--tron-blue);
-      border-radius: 4px;
-      color: var(--tron-blue-light);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 10px;
-      cursor: pointer;
-      transition: all 0.2s;
-      
-      &:hover:not(:disabled) {
-        background: rgba(0, 204, 255, 0.2);
-        box-shadow: 0 0 8px var(--tron-blue);
-      }
-      
-      &:disabled {
-        opacity: 0.3;
-        cursor: default;
-      }
-    }
-  }
-}
-
-.sort-actions {
-  display: flex;
-  justify-content: center;
-  margin-top: 10px;
-  
-  .close-sort {
-    padding: 6px 15px;
-    background: rgba(0, 40, 70, 0.9);
-    color: var(--tron-blue-light);
-    border: 1px solid var(--tron-blue);
-    border-radius: 4px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.2s;
-    
-    &:hover {
-      background: rgba(0, 60, 100, 0.9);
-      box-shadow: 0 0 10px var(--tron-blue);
-    }
-  }
-}
 </style>
+``` 

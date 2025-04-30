@@ -229,6 +229,9 @@ onMounted(() => {
   // Simuler un chargement de terminal
   setTimeout(() => {
     terminalContent.value.push('System initialized')
+    terminalContent.value.push('Bienvenue, Vous êtes projeté dans une instance de simulation.')
+    terminalContent.value.push('Mission : retrouver REMANENCE. Progression : 0%.')
+    terminalContent.value.push('Chaque programme suit une fonction. Mais certains... transcendent leur code.')
     terminalContent.value.push('Ready for input. Type "help" for available commands')
   }, 1500)
 })

@@ -18,9 +18,50 @@ const initCanvas = () => {
   animate()
 }
 
-// Ajout d'une variable pour suivre le temps pour l'animation
+// Variables pour suivre le temps pour les animations
 let lastTimestamp = 0
-const animationSpeed = 500 // Vitesse d'animation des lignes horizontales
+const animationSpeed = 800 // Vitesse d'animation des lignes horizontales
+const fogAnimationSpeed = 5000 // Vitesse d'animation de la brume (plus lente)
+
+// Paramètres pour la brume
+const fogParticles: FogParticle[] = []
+const numFogParticles = 20 // Nombre de particules de brume
+
+// Interface pour les particules de brume
+interface FogParticle {
+  x: number
+  y: number
+  radius: number
+  speed: number
+  opacity: number
+  phaseOffset: number
+}
+
+// Initialiser les particules de brume
+const initFogParticles = () => {
+  if (!canvasRef.value) return
+  
+  const width = canvasRef.value.width
+  const height = canvasRef.value.height
+  const middleY = height / 1.6 // Ligne d'horizon
+  
+  // Vider le tableau avant de le remplir
+  fogParticles.length = 0
+  
+  for (let i = 0; i < numFogParticles; i++) {
+    // Répartir les particules principalement au-dessus de l'horizon
+    const y = Math.random() * middleY * 0.8 // Limiter à 80% de la hauteur au-dessus de l'horizon
+    
+    fogParticles.push({
+      x: Math.random() * width,
+      y: y,
+      radius: Math.random() * 60 + 20, // Taille variable pour les particules
+      speed: Math.random() * 0.2 + 0.1, // Vitesse de déplacement latéral
+      opacity: Math.random() * 0.15 + 0.05, // Opacité variable
+      phaseOffset: Math.random() * Math.PI * 2 // Décalage pour l'animation de pulsation
+    })
+  }
+}
 
 const drawGrid = (time: number) => {
   if (!ctx || !canvasRef.value) return
@@ -39,8 +80,11 @@ const drawGrid = (time: number) => {
   ctx.clearRect(0, 0, width, height)
   
   // Fond noir pour meilleur contraste
-  ctx.fillStyle = 'rgb(0, 5, 15)'
+  ctx.fillStyle = 'rgb(0, 15, 25)'
   ctx.fillRect(0, 0, width, height)
+  
+  // Dessiner la brume bleutée
+  drawFog(time, width, height, tronBlue)
   
   // Dessiner la ligne horizontale au milieu de l'écran
   const middleY = height / 1.6
@@ -67,7 +111,7 @@ const drawGrid = (time: number) => {
   ctx.lineTo(width, middleY)
   ctx.stroke()
   
-  // NOUVELLES LIGNES HORIZONTALES ANIMÉES
+  // LIGNES HORIZONTALES ANIMÉES
   // Paramètres pour les lignes horizontales
   const initialSpacing = 2 // Espacement initial près de l'horizon
   const totalLines = 35 // Nombre de lignes à dessiner
@@ -189,6 +233,59 @@ const drawGrid = (time: number) => {
   }
 }
 
+// Fonction pour dessiner la brume bleutée
+const drawFog = (time: number, width: number, height: number, tronBlue: string) => {
+  if (!ctx) return
+  
+  const middleY = height / 1.6 // Ligne d'horizon
+  
+  // Désactiver l'ombre pour la brume (meilleures performances)
+  ctx.shadowBlur = 0
+  
+  // Mettre à jour et dessiner chaque particule de brume
+  for (const particle of fogParticles) {
+    // Animer la position X (mouvement latéral lent)
+    particle.x += particle.speed
+    if (particle.x > width + particle.radius) {
+      particle.x = -particle.radius
+    }
+    
+    // Animer l'opacité avec une légère pulsation
+    const pulseOpacity = particle.opacity * (0.7 + 0.3 * Math.sin((time / 1000) + particle.phaseOffset))
+    
+    // Créer un dégradé radial pour chaque particule
+    const gradient = ctx.createRadialGradient(
+      particle.x, particle.y, 0,
+      particle.x, particle.y, particle.radius
+    )
+    
+    gradient.addColorStop(0, `rgba(${tronBlue}, ${pulseOpacity})`)
+    gradient.addColorStop(1, `rgba(${tronBlue}, 0)`)
+    
+    ctx.fillStyle = gradient
+    ctx.beginPath()
+    ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2)
+    ctx.fill()
+  }
+  
+  // Ajouter un effet de brume globale près de l'horizon
+  const fogGradient = ctx.createLinearGradient(0, 0, 0, middleY)
+  fogGradient.addColorStop(0, `rgba(${tronBlue}, 0.01)`)
+  fogGradient.addColorStop(0.8, `rgba(${tronBlue}, 0.05)`)
+  fogGradient.addColorStop(1, `rgba(${tronBlue}, 0.1)`)
+  
+  ctx.fillStyle = fogGradient
+  ctx.fillRect(0, 0, width, middleY)
+  
+  // Créer un effet de couche de brume à l'horizon
+  const horizonGlow = ctx.createLinearGradient(0, middleY - 50, 0, middleY)
+  horizonGlow.addColorStop(0, `rgba(${tronBlue}, 0)`)
+  horizonGlow.addColorStop(1, `rgba(${tronBlue}, 0.2)`)
+  
+  ctx.fillStyle = horizonGlow
+  ctx.fillRect(0, middleY - 50, width, 50)
+}
+
 const animate = (timestamp = 0) => {
   if (!ctx || !canvasRef.value) return
   
@@ -201,11 +298,13 @@ const handleResize = () => {
   if (!canvasRef.value || !ctx) return
   canvasRef.value.width = window.innerWidth
   canvasRef.value.height = window.innerHeight
+  initFogParticles() // Réinitialiser les particules lors du redimensionnement
   drawGrid(0)
 }
 
 onMounted(() => {
   initCanvas()
+  initFogParticles() // Initialiser les particules de brume
   window.addEventListener('resize', handleResize)
 })
 

@@ -708,6 +708,43 @@ onBeforeUnmount(() => {
   flex-grow: 1;
   overflow-y: auto;
   margin-bottom: 10px;
+  
+  /* Enhanced terminal scrollbar */
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: rgba(0, 20, 40, 0.6);
+    border-radius: 4px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: var(--tron-blue-dark);
+    border-radius: 4px;
+    border: 1px solid var(--tron-blue);
+    box-shadow: 0 0 5px var(--tron-blue);
+  }
+  
+  &::-webkit-scrollbar-thumb:hover {
+    background: var(--tron-blue);
+    box-shadow: 0 0 10px var(--tron-blue);
+  }
+  
+  /* Surge mode scrollbar */
+  .surge-mode & {
+    &::-webkit-scrollbar-thumb {
+      background: #5a1500;
+      border: 1px solid var(--surge-color);
+      box-shadow: 0 0 5px var(--surge-color);
+    }
+    
+    &::-webkit-scrollbar-thumb:hover {
+      background: var(--surge-color);
+      box-shadow: 0 0 10px var(--surge-color);
+    }
+  }
 }
 
 .terminal-line {

@@ -14,6 +14,39 @@ a {
   transition: all 0.3s ease;
 }
 
+/* Custom scrollbar styling for TRON theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 20, 40, 0.5);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--tron-blue-dark);
+  border-radius: 4px;
+  border: 1px solid var(--tron-blue);
+  box-shadow: 0 0 5px rgba(0, 204, 255, 0.2);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--tron-blue);
+  box-shadow: 0 0 10px var(--tron-blue);
+}
+
+::-webkit-scrollbar-corner {
+  background: rgba(0, 20, 40, 0.5);
+}
+
+/* Firefox scrollbar styling */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--tron-blue-dark) rgba(0, 20, 40, 0.5);
+}
+
 /* Suppression des styles qui limitent la largeur et centrent le contenu */
 @media (min-width: 1024px) {
   body {

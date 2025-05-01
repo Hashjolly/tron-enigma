@@ -319,6 +319,29 @@ onBeforeUnmount(() => {
   border-radius: 4px;
   padding: 15px;
   white-space: pre-wrap;
+  
+  /* Custom scrollbar for log window - gold theme */
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: rgba(41, 30, 5, 0.5);
+    border-radius: 4px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: #8B6914;
+    border-radius: 4px;
+    border: 1px solid #fdcb6e;
+    box-shadow: 0 0 5px rgba(253, 203, 110, 0.3);
+  }
+  
+  &::-webkit-scrollbar-thumb:hover {
+    background: #fdcb6e;
+    box-shadow: 0 0 10px rgba(253, 203, 110, 0.6);
+  }
 }
 
 .log-line {

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
+import { useGridStore } from '@/stores/gridStore'
 
 const terminalContent = ref<string[]>([
   'TRON OS v1.0.0',
@@ -14,6 +15,9 @@ const historyIndex = ref(-1)
 const isMinimized = ref(false)
 const isClosing = ref(false)
 const terminalPosition = ref({ x: 0, y: 0 })
+
+// Utiliser le store Grid global
+const gridStore = useGridStore()
 
 // Variables for dragging functionality
 const isDragging = ref(false)
@@ -31,7 +35,6 @@ const resizeStartWidth = ref(0)
 const resizeStartHeight = ref(0)
 
 const startDrag = (event: MouseEvent) => {
-  // Only allow dragging from the titlebar (not from controls)
   if ((event.target as HTMLElement).closest('.terminal-controls')) {
     return
   }
@@ -40,7 +43,6 @@ const startDrag = (event: MouseEvent) => {
   dragStartX.value = event.clientX
   dragStartY.value = event.clientY
   
-  // Prevent text selection during drag
   event.preventDefault()
 }
 
@@ -55,13 +57,11 @@ const onDrag = (event: MouseEvent) => {
   const deltaX = event.clientX - dragStartX.value
   const deltaY = event.clientY - dragStartY.value
   
-  // Update window position based on drag delta
   windowPosition.value = {
     x: Math.max(0, Math.min(100, windowPosition.value.x + deltaX / window.innerWidth * 100)),
     y: Math.max(0, Math.min(100, windowPosition.value.y + deltaY / window.innerHeight * 100))
   }
   
-  // Update starting point for next delta calculation
   dragStartX.value = event.clientX
   dragStartY.value = event.clientY
 }
@@ -79,7 +79,6 @@ const startResize = (event: MouseEvent, direction: string) => {
   resizeStartWidth.value = windowSize.value.width
   resizeStartHeight.value = windowSize.value.height
   
-  // Prevent text selection during resize
   event.preventDefault()
   event.stopPropagation()
 }
@@ -90,13 +89,11 @@ const onResize = (event: MouseEvent) => {
   const deltaX = event.clientX - resizeStartX.value
   const deltaY = event.clientY - resizeStartY.value
   
-  // Min and max dimensions
   const minWidth = 400
   const maxWidth = window.innerWidth * 0.9
   const minHeight = 200
   const maxHeight = window.innerHeight * 0.9
   
-  // Apply resize based on direction
   if (resizeDirection.value.includes('e')) {
     windowSize.value.width = Math.max(minWidth, Math.min(maxWidth, resizeStartWidth.value + deltaX))
   }
@@ -104,7 +101,6 @@ const onResize = (event: MouseEvent) => {
   if (resizeDirection.value.includes('w')) {
     const newWidth = Math.max(minWidth, Math.min(maxWidth, resizeStartWidth.value - deltaX))
     if (newWidth !== windowSize.value.width) {
-      // Adjust position when resizing from left side to keep right side fixed
       const widthDiff = newWidth - windowSize.value.width
       windowPosition.value.x = windowPosition.value.x - (widthDiff / window.innerWidth) * 50
       windowSize.value.width = newWidth
@@ -118,7 +114,6 @@ const onResize = (event: MouseEvent) => {
   if (resizeDirection.value.includes('n')) {
     const newHeight = Math.max(minHeight, Math.min(maxHeight, resizeStartHeight.value - deltaY))
     if (newHeight !== windowSize.value.height) {
-      // Adjust position when resizing from top side to keep bottom side fixed
       const heightDiff = newHeight - windowSize.value.height
       windowPosition.value.y = windowPosition.value.y - (heightDiff / window.innerHeight) * 50
       windowSize.value.height = newHeight
@@ -131,16 +126,25 @@ const stopResize = () => {
   resizeDirection.value = ''
 }
 
+// Formater le temps restant
+const formattedTime = computed(() => {
+  if (!gridStore.countdownStarted) return '';
+  
+  const minutes = Math.floor(gridStore.timeRemaining / 60);
+  const seconds = gridStore.timeRemaining % 60;
+  return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+})
+
 // Define emits for parent component communication
 const emit = defineEmits(['close'])
 
 const addCommandToTerminal = () => {
   if (!commandInput.value.trim()) return
   
-  terminalContent.value.push(`> ${commandInput.value}`)
+  const userCommand = commandInput.value.trim()
+  terminalContent.value.push(`> ${userCommand}`)
   
-  // Ajouter des réponses en fonction de la commande
-  const command = commandInput.value.toUpperCase()
+  const command = userCommand.toUpperCase()
   
   if (command.includes('HELP')) {
     terminalContent.value.push('Available commands:')
@@ -148,29 +152,82 @@ const addCommandToTerminal = () => {
     terminalContent.value.push('- CLEAR: Clear terminal')
     terminalContent.value.push('- SYS INFO: Display system information')
     terminalContent.value.push('- ACCESS GRID: Connect to the Grid')
-    terminalContent.value.push('- LOG <USER>: Connect to the Grid')
-    terminalContent.value.push('- LOCATE <PROGRAM>: Locate the program of your choice')
+    terminalContent.value.push('- LOG <USER>: Authenticate as user')
+    terminalContent.value.push('- TRACE <PROGRAM>: Locate the program of your choice')
   } else if (command.includes('CLEAR')) {
     terminalContent.value = []
   } else if (command.includes('SYS INFO')) {
     terminalContent.value.push('TRON OS v1.0.0')
     terminalContent.value.push('CPU: ENCOM Quantum 9000')
     terminalContent.value.push('Memory: 128TB Quantum RAM')
-    terminalContent.value.push('Grid Access: Enabled')
-  } else if (command.includes('ACCESS GRID')) {
-    terminalContent.value.push('Connecting to the Grid...')
-    terminalContent.value.push('WARNING: User digitization process required')
-    terminalContent.value.push('Initiating laser sequence...')
+    terminalContent.value.push('Grid Access: ' + (gridStore.gridAccessed ? 'Enabled (UNSTABLE)' : 'Disabled'))
+    if (gridStore.countdownStarted) {
+      terminalContent.value.push('WARNING: System breach detected')
+      terminalContent.value.push('Time until CLU arrival: ' + formattedTime.value)
+    }
+  } else if (command === 'ACCESS GRID') {
+    if (!gridStore.gridAccessed) {
+      gridStore.gridAccessed = true
+      terminalContent.value.push('Connecting to the Grid...')
+      terminalContent.value.push('WARNING: Unstable connection detected')
+      terminalContent.value.push('Initiating Grid access protocols...')
+      terminalContent.value.push('Grid access established - WARNING: Connection unstable')
+      
+      gridStore.startCountdown()
+    } else {
+      terminalContent.value.push('Grid access already established')
+      terminalContent.value.push('WARNING: Multiple access attempts may destabilize the connection')
+      terminalContent.value.push('Proceeding with trace operations is recommended')
+    }
+  } else if (command.startsWith('TRACE ')) {
+    if (!gridStore.gridAccessed) {
+      terminalContent.value.push('ERROR: Grid access required for trace operations')
+      terminalContent.value.push('Please use ACCESS GRID command first')
+    } else {
+      const target = command.replace('TRACE ', '').trim()
+      
+      if (target === 'REMANENCE' || target === 'REMANANCE') {
+        gridStore.remanenceFound = true
+        let loadingDots = 0
+        terminalContent.value.push('Program signature detected')
+        const loadingInterval = setInterval(() => {
+          loadingDots = (loadingDots + 1) % 3
+          terminalContent.value[terminalContent.value.length - 1] = 
+            'Scanning grid for ' + target + '.' + '.'.repeat(loadingDots)
+        }, 500)
+
+        setTimeout(() => {
+          clearInterval(loadingInterval)
+          terminalContent.value.push('Scanning complete.')
+          terminalContent.value.push('Signature detected in Sector 7G.')
+          terminalContent.value.push('Trace established')
+          terminalContent.value.push('>> Message from REMANENCE: <<')
+          terminalContent.value.push('>>"J’ai peur. Je sais qu’il me traque…"<<')
+          terminalContent.value.push('NEXT STEP : 01001001010100110100111101001100010000010101010001000101')
+        }, 7000)
+
+      } else {
+        terminalContent.value.push('Initiating trace for program: ' + target)
+        terminalContent.value.push('Scanning grid sectors...')
+        terminalContent.value.push('ERROR: Program not found or access restricted')
+        terminalContent.value.push('Try another search parameter or verify program designation')
+      }
+    }
   } else {
     terminalContent.value.push('Command not recognized. Type "HELP" for available commands')
   }
   
-  // Ajouter au historique
   commandHistory.value.push(commandInput.value)
   historyIndex.value = commandHistory.value.length
   
-  // Réinitialiser l'entrée
   commandInput.value = ''
+  
+  setTimeout(() => {
+    const terminalOutput = document.querySelector('.terminal-output')
+    if (terminalOutput) {
+      terminalOutput.scrollTop = terminalOutput.scrollHeight
+    }
+  }, 0)
 }
 
 const navigateHistory = (direction: 'up' | 'down') => {
@@ -200,7 +257,6 @@ const toggleMinimize = () => {
 }
 
 const toggleClose = () => {
-  // Get terminal taskbar icon position to animate towards it
   const taskbarIcon = document.querySelector('.taskbar-icon.terminal-icon')
   if (taskbarIcon) {
     const rect = taskbarIcon.getBoundingClientRect()
@@ -210,36 +266,35 @@ const toggleClose = () => {
     }
   }
 
-  // Start closing animation
   isClosing.value = true
   
-  // Wait for animation to complete then emit close event
   setTimeout(() => {
     emit('close')
     isClosing.value = false
-  }, 500) // Match this with CSS transition duration
+  }, 500)
 }
 
 onMounted(() => {
-  // Add global event listeners for drag and resize operations
   document.addEventListener('mousemove', onDrag)
   document.addEventListener('mouseup', () => {
     stopDrag()
     stopResize()
   })
-  
-  // Simuler un chargement de terminal
   setTimeout(() => {
-    terminalContent.value.push('System initialized')
-    terminalContent.value.push('Bienvenue, Vous êtes projeté dans une instance de simulation.')
-    terminalContent.value.push('Mission : retrouver REMANENCE. Progression : 0%.')
-    terminalContent.value.push('Chaque programme suit une fonction. Mais certains... transcendent leur code.')
-    terminalContent.value.push('Ready for input. Type "HELP" for available commands')
+    if (gridStore.gridAccessed) {
+      terminalContent.value.push('Vous êtes connectées à la grille, faites vite !')
+      terminalContent.value.push('CLU ne doit surtout pas vous trouver !')
+    } else {
+      terminalContent.value.push('System initialized')
+      terminalContent.value.push('Bienvenue, Vous êtes projetées dans une instance de simulation.')
+      terminalContent.value.push('Mission : retrouver REMANENCE. Progression : 0%.')
+      terminalContent.value.push('Chaque programme suit une fonction. Mais certaines... transcendent leur code.')
+      terminalContent.value.push('Ready for input. Type "HELP" for available commands')
+    }
   }, 1500)
 })
 
 onBeforeUnmount(() => {
-  // Clean up event listeners
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
 })
@@ -251,7 +306,8 @@ onBeforeUnmount(() => {
          'minimized': isMinimized, 
          'closing': isClosing,
          'dragging': isDragging,
-         'resizing': isResizing
+         'resizing': isResizing,
+         'surge-mode': gridStore.isSurging
        }"
        :style="[
          isClosing ? `--target-x: ${terminalPosition.x}px; --target-y: ${terminalPosition.y}px;` : '',
@@ -322,7 +378,7 @@ onBeforeUnmount(() => {
   z-index: 100;
   
   &.dragging, &.resizing {
-    transition: none; /* Disable transitions while dragging/resizing for smooth movement */
+    transition: none;
     user-select: none;
   }
   
@@ -343,6 +399,24 @@ onBeforeUnmount(() => {
     ) scale(0.1);
     opacity: 0;
     box-shadow: 0 0 30px var(--tron-blue);
+  }
+  
+  &.surge-mode {
+    border-color: var(--tron-accent, #ff00aa);
+    box-shadow: 0 0 15px var(--tron-accent, #ff00aa), 0 0 30px rgba(255, 0, 170, 0.3);
+    
+    .terminal-titlebar {
+      background: linear-gradient(to right, #5a1500, #2a0010);
+    }
+    
+    .prompt, .terminal-line, .terminal-input {
+      color: #ffcc99;
+      text-shadow: 0 0 2px #ff8800;
+    }
+    
+    .resize-handle:hover {
+      background-color: rgba(255, 136, 0, 0.2);
+    }
   }
 }
 
@@ -427,11 +501,11 @@ onBeforeUnmount(() => {
   align-items: center;
   padding: 0 10px;
   user-select: none;
-  cursor: move; /* Show move cursor on titlebar */
+  cursor: move;
   
   &.dragging {
     cursor: grabbing;
-    background: linear-gradient(to right, var(--tron-blue), var(--tron-blue-dark)); /* Highlight while dragging */
+    background: linear-gradient(to right, var(--tron-blue), var(--tron-blue-dark));
   }
 }
 
@@ -514,7 +588,6 @@ onBeforeUnmount(() => {
   caret-color: var(--tron-blue-light);
 }
 
-/* Animation de clignotement du curseur */
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }

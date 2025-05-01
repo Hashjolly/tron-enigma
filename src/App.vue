@@ -4,11 +4,13 @@ import GridBackground from './components/GridBackground.vue'
 import TronTerminal from './components/TronTerminal.vue'
 import TaskBar from './components/TaskBar.vue'
 import TronAudioPlayer from './components/TronAudioPlayer.vue'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useAudioStore } from './stores/audioStore'
+import { useGridStore } from './stores/gridStore'
 
 const showTerminal = ref(false)
 const audioStore = useAudioStore()
+const gridStore = useGridStore()
 const showAudioPrompt = ref(true)
 
 // Mettre en place un bouton audio dans la TaskBar
@@ -35,15 +37,29 @@ onMounted(() => {
     }
   }, 10000)
 })
+
+// Nettoyage du compteur lors de la destruction du composant
+onBeforeUnmount(() => {
+  gridStore.stopCountdown()
+})
 </script>
 
 <template>
-  <div class="tron-container" @click="enableAudio">
+  <div class="tron-container" @click="enableAudio" :class="{ 'surge-mode': gridStore.isSurging }">
     <GridBackground />
+    
+    <!-- Compte à rebours en haut de l'écran -->
+    <div v-if="gridStore.countdownStarted" class="global-countdown-container">
+      <div class="global-countdown" :class="{ 'warning': gridStore.timeRemaining < 600 }">
+        {{ gridStore.formattedTime }}
+      </div>
+    </div>
+    
     <div class="content">
       <TronTerminal v-if="showTerminal" @close="showTerminal = false" />
       <TronAudioPlayer />
     </div>
+    
     <TaskBar 
       @openTerminal="showTerminal = true" 
       @toggleAudio="toggleAudio"
@@ -71,6 +87,13 @@ onMounted(() => {
   --tron-text-color: #d0f3ff;
   --tron-accent: #ff00aa;
   --tron-accent-glow: 0 0 10px #ff00aa, 0 0 20px #ff00aa;
+  
+  /* Couleurs pour le mode surge */
+  --surge-color: #ff8800;
+  --surge-light: #ffcc99;
+  --surge-dark: #5a1500;
+  --surge-glow: 0 0 10px #ff8800, 0 0 20px #ff8800;
+  --surge-text: #ffcc99;
 }
 
 /* Fix font loading method - direct @import with display swap */
@@ -101,6 +124,65 @@ html, body {
   width: 100vw;
   overflow: hidden;
   position: relative;
+  
+  &.surge-mode {
+    /* Effet global du mode "surge" sur toute l'application */
+    --tron-blue: var(--surge-color);
+    --tron-blue-light: var(--surge-light);
+    --tron-blue-dark: var(--surge-dark);
+    --tron-glow: var(--surge-glow);
+    --tron-text-color: var(--surge-text);
+    
+    /* Effets supplémentaires pour le mode surge */
+    .taskbar {
+      border-top-color: var(--surge-color) !important;
+      box-shadow: 0 -2px 15px rgba(255, 136, 0, 0.3) !important;
+    }
+    
+    .taskbar-icon {
+      border-color: var(--surge-color) !important;
+    }
+    
+    .global-countdown {
+      color: #ff5500 !important;
+      border-color: #ff5500 !important;
+      text-shadow: 0 0 5px #ff0000 !important;
+      animation: pulse-warning 1s infinite alternate;
+    }
+    
+    a {
+      color: var(--surge-light) !important;
+      text-shadow: 0 0 5px var(--surge-color) !important;
+      
+      &:hover {
+        text-shadow: var(--surge-glow) !important;
+      }
+    }
+    
+    .control-btn {
+      border-color: var(--surge-color) !important;
+      color: var(--surge-light) !important;
+    }
+    
+    .audio-player {
+      border-color: var(--surge-color) !important;
+      box-shadow: 0 0 15px rgba(255, 136, 0, 0.3) !important;
+    }
+    
+    .terminal-window {
+      border-color: var(--surge-color) !important;
+      box-shadow: 0 0 15px var(--surge-dark), 0 0 30px rgba(255, 136, 0, 0.3) !important;
+      
+      .terminal-titlebar {
+        background: linear-gradient(to right, #5a1500, #2a0010) !important;
+      }
+      
+      .prompt, .terminal-line, .terminal-input {
+        color: #ffcc99 !important;
+        text-shadow: 0 0 2px #ff8800 !important;
+      }
+    }
+  }
 }
 
 .content {
@@ -122,6 +204,45 @@ a {
     color: white;
     text-shadow: var(--tron-glow);
   }
+}
+
+/* Compte à rebours global */
+.global-countdown-container {
+  position: fixed;
+  top: 10px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  z-index: 1;
+  transition: all 0.3s ease;
+}
+
+.global-countdown {
+  background-color: rgba(0, 20, 40, 0.7);
+  padding: 4px 15px;
+  border-radius: 6px;
+  font-family: 'Consolas', monospace;
+  font-size: 20px;
+  font-weight: bold;
+  color: var(--tron-blue-light);
+  text-shadow: 0 0 5px var(--tron-blue);
+  border: 2px solid var(--tron-blue);
+  transition: all 0.3s ease;
+  backdrop-filter: blur(5px);
+  box-shadow: 0 0 15px rgba(0, 204, 255, 0.3);
+  
+  &.warning {
+    color: #ff5500;
+    border-color: #ff5500;
+    text-shadow: 0 0 5px #ff0000;
+    animation: pulse-warning 1s infinite alternate;
+  }
+}
+
+@keyframes pulse-warning {
+  from { box-shadow: 0 0 5px #ff0000; }
+  to { box-shadow: 0 0 15px #ff0000; }
 }
 
 /* New Audio Prompt */

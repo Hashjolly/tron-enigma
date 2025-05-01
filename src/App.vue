@@ -4,14 +4,20 @@ import GridBackground from './components/GridBackground.vue'
 import TronTerminal from './components/TronTerminal.vue'
 import TaskBar from './components/TaskBar.vue'
 import TronAudioPlayer from './components/TronAudioPlayer.vue'
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import LogWindow from './components/LogWindow.vue'
+import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useAudioStore } from './stores/audioStore'
 import { useGridStore } from './stores/gridStore'
+import { useWindowStore } from './stores/windowStore'
 
 const showTerminal = ref(false)
+const showLogWindow = ref(false)
 const audioStore = useAudioStore()
 const gridStore = useGridStore()
+const windowStore = useWindowStore()
 const showAudioPrompt = ref(true)
+const terminalRef = ref(null)
+const logWindowRef = ref(null)
 
 // Mettre en place un bouton audio dans la TaskBar
 const toggleAudio = () => {
@@ -26,6 +32,27 @@ const enableAudio = () => {
     document.querySelector('audio')?.play()
       .catch(() => console.log('Play still failed'))
     showAudioPrompt.value = false
+  }
+}
+
+// Handle restoring windows from taskbar
+const handleRestoreWindow = (windowId: string) => {
+  if (windowId === 'terminal-main') {
+    showTerminal.value = true
+    // Wait for next tick to ensure terminal is rendered
+    nextTick(() => {
+      if (terminalRef.value) {
+        terminalRef.value.restore()
+      }
+    })
+  } else if (windowId === 'log-window-bradley') {
+    // showLogWindow.value = true
+    // Wait for next tick to ensure window is rendered
+    // nextTick(() => {
+    //   if (logWindowRef.value) {
+    //     logWindowRef.value.restore()
+    //   }
+    // })
   }
 }
 
@@ -56,13 +83,23 @@ onBeforeUnmount(() => {
     </div>
     
     <div class="content">
-      <TronTerminal v-if="showTerminal" @close="showTerminal = false" />
+      <TronTerminal 
+        ref="terminalRef"
+        v-if="showTerminal" 
+        @close="showTerminal = false" 
+      />
+      <LogWindow 
+        ref="logWindowRef"
+        v-if="showLogWindow" 
+        @close="showLogWindow = false" 
+      />
       <TronAudioPlayer />
     </div>
     
     <TaskBar 
       @openTerminal="showTerminal = true" 
       @toggleAudio="toggleAudio"
+      @restoreWindow="handleRestoreWindow"
     />
     
     <!-- Add prominent audio enable button -->

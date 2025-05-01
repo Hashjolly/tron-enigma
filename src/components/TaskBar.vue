@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useAudioStore } from '@/stores/audioStore'
+import { useWindowStore } from '@/stores/windowStore'
 
 const currentTime = ref(new Date().toLocaleTimeString())
 const currentDate = ref(new Date().toLocaleDateString())
 const audioStore = useAudioStore()
+const windowStore = useWindowStore()
 
 // Define emits for parent communication
-const emit = defineEmits(['openTerminal', 'openGridAccess', 'openIdentityDisc', 'openLightCycle', 'toggleAudio'])
+const emit = defineEmits(['openTerminal', 'openGridAccess', 'openIdentityDisc', 'openLightCycle', 'toggleAudio', 'restoreWindow'])
 
 // Mettre à jour l'horloge
 setInterval(() => {
@@ -41,6 +43,27 @@ const toggleAudioPlayer = () => {
 const togglePlayPause = () => {
   audioStore.togglePlay()
 }
+
+// Handler for window restoration
+const restoreWindow = (windowId: string) => {
+  emit('restoreWindow', windowId)
+  windowStore.restoreWindow(windowId)
+}
+
+// Group minimized windows by type for the taskbar
+const minimizedByType = computed(() => {
+  const result: Record<string, typeof windowStore.minimizedWindows> = {
+    terminal: [],
+    log: [],
+    other: []
+  }
+  
+  windowStore.minimizedWindows.forEach(window => {
+    result[window.type].push(window)
+  })
+  
+  return result
+})
 </script>
 
 <template>
@@ -71,6 +94,42 @@ const togglePlayPause = () => {
       <div class="taskbar-item" @click="toggleAudioPlayer">
         <div class="taskbar-icon audio-icon" :class="{ 'active': audioStore.isPlaying }"></div>
         <div class="taskbar-tooltip">Audio Player</div>
+      </div>
+      
+      <!-- Minimized windows section -->
+      <div class="taskbar-separator" v-if="windowStore.minimizedWindows.length > 0"></div>
+      
+      <!-- Display minimized terminal windows -->
+      <div 
+        v-for="window in minimizedByType.terminal" 
+        :key="window.id"
+        class="taskbar-item minimized-window"
+        @click="restoreWindow(window.id)"
+      >
+        <div class="taskbar-icon terminal-icon minimized"></div>
+        <div class="taskbar-tooltip">{{ window.title }}</div>
+      </div>
+      
+      <!-- Display minimized log windows -->
+      <div 
+        v-for="window in minimizedByType.log" 
+        :key="window.id"
+        class="taskbar-item minimized-window"
+        @click="restoreWindow(window.id)"
+      >
+        <div class="taskbar-icon log-icon minimized"></div>
+        <div class="taskbar-tooltip">{{ window.title }}</div>
+      </div>
+      
+      <!-- Display other minimized windows -->
+      <div 
+        v-for="window in minimizedByType.other" 
+        :key="window.id"
+        class="taskbar-item minimized-window"
+        @click="restoreWindow(window.id)"
+      >
+        <div class="taskbar-icon minimized"></div>
+        <div class="taskbar-tooltip">{{ window.title }}</div>
       </div>
     </div>
     
@@ -276,5 +335,50 @@ const togglePlayPause = () => {
   font-size: 10px;
   color: var(--tron-text-color);
   opacity: 0.8;
+}
+
+.taskbar-separator {
+  width: 1px;
+  height: 32px;
+  background: rgba(0, 204, 255, 0.3);
+  margin: 0 8px;
+}
+
+.minimized-window {
+  .taskbar-icon {
+    &.minimized {
+      opacity: 0.7;
+      transform: scale(0.85);
+      border-color: rgba(0, 204, 255, 0.5);
+      
+      &:hover {
+        opacity: 1;
+        transform: scale(0.9);
+      }
+    }
+    
+    &.log-icon {
+      background-color: #412f00;
+      position: relative;
+      
+      &::before {
+        content: "L";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        color: #fdcb6e;
+        font-size: 14px;
+        font-weight: bold;
+      }
+    }
+  }
+  
+  &:hover {
+    .taskbar-icon {
+      box-shadow: 0 0 10px var(--tron-blue);
+      opacity: 1;
+    }
+  }
 }
 </style>

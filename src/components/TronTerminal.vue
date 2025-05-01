@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { useGridStore } from '@/stores/gridStore'
+import { useWindowStore } from '@/stores/windowStore'
 import LogWindow from './LogWindow.vue'
 
 const terminalContent = ref<string[]>([
-  'TRON OS v1.0.0',
-  'Copyright © ENCOM 2024',
-  'Initiating system...',
-  'Accessing Grid...'
+  '',
 ])
 
 const commandInput = ref('')
@@ -15,9 +13,12 @@ const commandHistory = ref<string[]>([])
 const historyIndex = ref(-1)
 const isMinimized = ref(false)
 const isClosing = ref(false)
+const isMaximized = ref(false)
 const terminalPosition = ref({ x: 0, y: 0 })
 const isTyping = ref(false)
 const showLogWindow = ref(false)
+const previousSize = ref({ width: 800, height: 500 })
+const previousPosition = ref({ x: 50, y: 50 })
 
 // Typing effect configuration
 const typingSpeed = ref(20) // ms between characters
@@ -25,6 +26,10 @@ const typingQueue = ref<{text: string, callback?: () => void}[]>([])
 
 // Utiliser le store Grid global
 const gridStore = useGridStore()
+
+// Get window store
+const windowStore = useWindowStore()
+const terminalId = 'terminal-main'
 
 // Variables for dragging functionality
 const isDragging = ref(false)
@@ -229,7 +234,7 @@ const addCommandToTerminal = () => {
     typeText('- CLEAR: Clear terminal')
     typeText('- SYS INFO: Display system information')
     typeText('- ACCESS GRID: Connect to the Grid')
-    typeText('- LOG <USER>: Authenticate as user')
+    typeText('- LOG <USER>: Access to an user data')
     typeText('- TRACE <PROGRAM>: Locate the program of your choice')
   } else if (command.includes('CLEAR')) {
     terminalContent.value = []
@@ -327,6 +332,7 @@ const addCommandToTerminal = () => {
         gridStore.remanenceIsolated = true
 
         let loadingDots = 0
+        typeText('Si tu as pu déchiffrer ça, tu es déjà différente.')
         terminalContent.value.push('Isolating ' + target + 'data cluster...')
         const loadingInterval = setInterval(() => {
           loadingDots = (loadingDots + 1) % 3
@@ -343,9 +349,7 @@ const addCommandToTerminal = () => {
                 setTimeout(() => {
                   typeText('Warning: Encryption detected.')
                   setTimeout(() => {
-                      typeText('>> Message from REMANENCE: <<')
-                      typeText('>>"J’ai peur. Je sais qu’il me traque…"<<')
-                      typeText('Next step: DECRYPT REMANANCE')
+                      typeText('Next step: DECRYPT REMANENCE')
                     }, 1000)
                   }, 1000)
                 }, 1000)
@@ -395,6 +399,51 @@ const handleKeyDown = (e: KeyboardEvent) => {
 
 const toggleMinimize = () => {
   isMinimized.value = !isMinimized.value
+  
+  if (isMinimized.value) {
+    windowStore.minimizeWindow({
+      id: terminalId,
+      title: 'Terminal',
+      type: 'terminal',
+      timestamp: Date.now()
+    })
+  } else {
+    windowStore.restoreWindow(terminalId)
+  }
+}
+
+// Watch for changes in the window store
+watch(
+  () => windowStore.minimizedWindows,
+  (minimizedWindows) => {
+    // Check if this window is in the minimized list
+    const isInList = minimizedWindows.some(w => w.id === terminalId)
+    isMinimized.value = isInList
+  },
+  { deep: true }
+)
+
+const toggleMaximize = () => {
+  if (isMaximized.value) {
+    // Restore previous size and position
+    windowSize.value = { ...previousSize.value }
+    windowPosition.value = { ...previousPosition.value }
+  } else {
+    // Save current size and position
+    previousSize.value = { ...windowSize.value }
+    previousPosition.value = { ...windowPosition.value }
+    
+    // Maximize to almost full screen (95% of viewport)
+    windowSize.value = { 
+      width: window.innerWidth, 
+      height: window.innerHeight * 0.95 
+    }
+    
+    // Center the window
+    windowPosition.value = { x: 50, y: 50 }
+  }
+  
+  isMaximized.value = !isMaximized.value
 }
 
 const toggleClose = () => {
@@ -413,6 +462,12 @@ const toggleClose = () => {
     emit('close')
     isClosing.value = false
   }, 500)
+}
+
+// Add restore function that can be called from TaskBar
+const restore = () => {
+  isMinimized.value = false
+  windowStore.restoreWindow(terminalId)
 }
 
 onMounted(() => {
@@ -449,12 +504,18 @@ onBeforeUnmount(() => {
   document.removeEventListener('mousemove', onDrag)
   document.removeEventListener('mouseup', stopDrag)
 })
+
+defineExpose({
+  terminalId,
+  restore
+})
 </script>
 
 <template>
   <div class="terminal-window" 
        :class="{ 
          'minimized': isMinimized, 
+         'maximized': isMaximized,
          'closing': isClosing,
          'dragging': isDragging,
          'resizing': isResizing,
@@ -480,8 +541,8 @@ onBeforeUnmount(() => {
          :class="{ 'dragging': isDragging }">
       <div class="terminal-controls">
         <div class="control close" @click="toggleClose"></div>
-        <div class="control minimize" @click="toggleMinimize"></div>
-        <div class="control maximize"></div>
+        <div class="control minimize" @click="toggleMaximize"></div>
+        <div class="control maximize" @click="toggleMinimize"></div>
       </div>
       <div class="terminal-title">ENCOM Terminal</div>
     </div>
@@ -541,6 +602,10 @@ onBeforeUnmount(() => {
   }
   
   &.minimized {
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, -50%) scale(0.1);
+    position: absolute;
     height: 30px;
     overflow: hidden;
   }
@@ -553,6 +618,15 @@ onBeforeUnmount(() => {
     ) scale(0.1);
     opacity: 0;
     box-shadow: 0 0 30px var(--tron-blue);
+  }
+  
+  &.maximized {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    transform: none;
+    border-radius: 0;
+    z-index: 200;
   }
   
   &.surge-mode {

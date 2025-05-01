@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useGridStore } from '@/stores/gridStore'
+import LogWindow from './LogWindow.vue'
 
 const terminalContent = ref<string[]>([
   'TRON OS v1.0.0',
@@ -15,6 +16,12 @@ const historyIndex = ref(-1)
 const isMinimized = ref(false)
 const isClosing = ref(false)
 const terminalPosition = ref({ x: 0, y: 0 })
+const isTyping = ref(false)
+const showLogWindow = ref(false)
+
+// Typing effect configuration
+const typingSpeed = ref(20) // ms between characters
+const typingQueue = ref<{text: string, callback?: () => void}[]>([])
 
 // Utiliser le store Grid global
 const gridStore = useGridStore()
@@ -135,6 +142,69 @@ const formattedTime = computed(() => {
   return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 })
 
+// Function to type out text character by character
+const typeText = (text: string, callback?: () => void) => {
+  typingQueue.value.push({ text, callback })
+  
+  if (!isTyping.value) {
+    processTypingQueue()
+  }
+}
+
+// Process the typing queue
+const processTypingQueue = () => {
+  if (typingQueue.value.length === 0) {
+    isTyping.value = false
+    return
+  }
+  
+  isTyping.value = true
+  const current = typingQueue.value[0]
+  let charIndex = 0
+  
+  // Add a new empty line for this text
+  terminalContent.value.push('')
+  const lineIndex = terminalContent.value.length - 1
+  
+  const typeCharacter = () => {
+    if (charIndex < current.text.length) {
+      // Add the next character
+      terminalContent.value[lineIndex] += current.text[charIndex]
+      charIndex++
+      
+      // Scroll to bottom
+      scrollToBottom()
+      
+      // Schedule the next character
+      setTimeout(typeCharacter, typingSpeed.value)
+    } else {
+      // This line is complete, move to next in queue
+      typingQueue.value.shift()
+      
+      // Execute callback if provided
+      if (current.callback) {
+        current.callback()
+      }
+      
+      // Process next item in queue
+      setTimeout(processTypingQueue, 50)
+    }
+  }
+  
+  // Start typing
+  typeCharacter()
+}
+
+// Helper function to scroll to bottom of terminal
+const scrollToBottom = () => {
+  setTimeout(() => {
+    const terminalOutput = document.querySelector('.terminal-output')
+    if (terminalOutput) {
+      terminalOutput.scrollTop = terminalOutput.scrollHeight
+    }
+  }, 0)
+}
+
 // Define emits for parent component communication
 const emit = defineEmits(['close'])
 
@@ -142,92 +212,163 @@ const addCommandToTerminal = () => {
   if (!commandInput.value.trim()) return
   
   const userCommand = commandInput.value.trim()
+  // Immediately show what the user typed with the prompt
   terminalContent.value.push(`> ${userCommand}`)
+  scrollToBottom()
   
   const command = userCommand.toUpperCase()
   
+  // Add to command history
+  commandHistory.value.push(commandInput.value)
+  historyIndex.value = commandHistory.value.length
+  commandInput.value = ''
+  
   if (command.includes('HELP')) {
-    terminalContent.value.push('Available commands:')
-    terminalContent.value.push('- HELP: Display this help')
-    terminalContent.value.push('- CLEAR: Clear terminal')
-    terminalContent.value.push('- SYS INFO: Display system information')
-    terminalContent.value.push('- ACCESS GRID: Connect to the Grid')
-    terminalContent.value.push('- LOG <USER>: Authenticate as user')
-    terminalContent.value.push('- TRACE <PROGRAM>: Locate the program of your choice')
+    typeText('Available commands:')
+    typeText('- HELP: Display this help')
+    typeText('- CLEAR: Clear terminal')
+    typeText('- SYS INFO: Display system information')
+    typeText('- ACCESS GRID: Connect to the Grid')
+    typeText('- LOG <USER>: Authenticate as user')
+    typeText('- TRACE <PROGRAM>: Locate the program of your choice')
   } else if (command.includes('CLEAR')) {
     terminalContent.value = []
   } else if (command.includes('SYS INFO')) {
-    terminalContent.value.push('TRON OS v1.0.0')
-    terminalContent.value.push('CPU: ENCOM Quantum 9000')
-    terminalContent.value.push('Memory: 128TB Quantum RAM')
-    terminalContent.value.push('Grid Access: ' + (gridStore.gridAccessed ? 'Enabled (UNSTABLE)' : 'Disabled'))
+    typeText('TRON OS v1.0.0')
+    typeText('CPU: ENCOM Quantum 9000')
+    typeText('Memory: 128TB Quantum RAM')
+    typeText('Grid Access: ' + (gridStore.gridAccessed ? 'Enabled (UNSTABLE)' : 'Disabled'))
     if (gridStore.countdownStarted) {
-      terminalContent.value.push('WARNING: System breach detected')
-      terminalContent.value.push('Time until CLU arrival: ' + formattedTime.value)
+      typeText('WARNING: System breach detected')
+      typeText('Time until CLU arrival: ' + formattedTime.value)
     }
   } else if (command === 'ACCESS GRID') {
     if (!gridStore.gridAccessed) {
       gridStore.gridAccessed = true
-      terminalContent.value.push('Connecting to the Grid...')
-      terminalContent.value.push('WARNING: Unstable connection detected')
-      terminalContent.value.push('Initiating Grid access protocols...')
-      terminalContent.value.push('Grid access established - WARNING: Connection unstable')
-      
-      gridStore.startCountdown()
+      typeText('Connecting to the Grid...')
+      typeText('WARNING: Unstable connection detected')
+      typeText('Initiating Grid access protocols...')
+      typeText('Grid access established - WARNING: Connection unstable', () => {
+        gridStore.startCountdown()
+      })
     } else {
-      terminalContent.value.push('Grid access already established')
-      terminalContent.value.push('WARNING: Multiple access attempts may destabilize the connection')
-      terminalContent.value.push('Proceeding with trace operations is recommended')
+      typeText('Grid access already established')
+      typeText('WARNING: Multiple access attempts may destabilize the connection')
+      typeText('Proceeding with trace operations is recommended')
     }
   } else if (command.startsWith('TRACE ')) {
     if (!gridStore.gridAccessed) {
-      terminalContent.value.push('ERROR: Grid access required for trace operations')
-      terminalContent.value.push('Please use ACCESS GRID command first')
+      typeText('ERROR: Grid access required for trace operations')
+      typeText('Please use ACCESS GRID command first')
     } else {
       const target = command.replace('TRACE ', '').trim()
       
       if (target === 'REMANENCE' || target === 'REMANANCE') {
         gridStore.remanenceFound = true
+
         let loadingDots = 0
-        terminalContent.value.push('Program signature detected')
+        terminalContent.value.push('Scanning grid for ' + target + '...')
         const loadingInterval = setInterval(() => {
           loadingDots = (loadingDots + 1) % 3
           terminalContent.value[terminalContent.value.length - 1] = 
             'Scanning grid for ' + target + '.' + '.'.repeat(loadingDots)
         }, 500)
 
-        setTimeout(() => {
-          clearInterval(loadingInterval)
-          terminalContent.value.push('Scanning complete.')
-          terminalContent.value.push('Signature detected in Sector 7G.')
-          terminalContent.value.push('Trace established')
-          terminalContent.value.push('>> Message from REMANENCE: <<')
-          terminalContent.value.push('>>"J’ai peur. Je sais qu’il me traque…"<<')
-          terminalContent.value.push('NEXT STEP : 01001001010100110100111101001100010000010101010001000101')
-        }, 7000)
-
+          setTimeout(() => {
+            clearInterval(loadingInterval)
+            setTimeout(() => {
+              typeText('Scanning complete')
+              setTimeout(() => {
+                typeText('Signature detected in Sector 7G.')
+                setTimeout(() => {
+                  typeText('Trace established')
+                  setTimeout(() => {
+                      typeText('>> Message from REMANENCE: <<')
+                      typeText('>>"J’ai peur. Je sais qu’il me traque…"<<')
+                      typeText('NEXT STEP : 01001001010100110100111101001100010000010101010001000101')
+                    }, 1000)
+                  }, 1000)
+                }, 1000)
+            }, 1000)
+          }, 7000)
+        
       } else {
-        terminalContent.value.push('Initiating trace for program: ' + target)
-        terminalContent.value.push('Scanning grid sectors...')
-        terminalContent.value.push('ERROR: Program not found or access restricted')
-        terminalContent.value.push('Try another search parameter or verify program designation')
+        typeText('Initiating trace for program: ' + target)
+        typeText('Scanning grid sectors...')
+        setTimeout(() => {
+          typeText('ERROR: Program not found or access restricted')
+          typeText('Try another search parameter or verify program designation')
+        }, 2000)
+      }
+    }
+  } else if (command.startsWith('LOG ')) {
+    const user = command.replace('LOG ', '').trim()
+    if (user === 'BRADLEY') {
+      typeText('Authenticating as BRADLEY...')
+      setTimeout(() => {
+        typeText('Authentication successful')
+        typeText('Accessing log files...')
+        setTimeout(() => {
+          showLogWindow.value = true  // Ouvrir la fenêtre de log
+        }, 1000)
+      }, 2000)
+    } else {
+      typeText('ERROR: Invalid user designation')
+      typeText('Please use LOG <USER> for authentication')
+    }
+  } else if (command.startsWith('ISOLATE ')) {
+    if (!gridStore.remanenceFound) {
+      typeText('ERROR: REMANENCE not found')
+      typeText('Please use TRACE command first')
+    } else {
+      const target = command.replace('ISOLATE ', '').trim()
+      
+      if (target === 'REMANENCE' || target === 'REMANANCE') {
+        gridStore.remanenceIsolated = true
+
+        let loadingDots = 0
+        terminalContent.value.push('Isolating ' + target + 'data cluster...')
+        const loadingInterval = setInterval(() => {
+          loadingDots = (loadingDots + 1) % 3
+          terminalContent.value[terminalContent.value.length - 1] = 
+            'Isolating ' + target + ' data cluster' + '.' + '.'.repeat(loadingDots)
+        }, 500)
+
+          setTimeout(() => {
+            clearInterval(loadingInterval)
+            setTimeout(() => {
+              typeText('REMN_CORE.7G located.')
+              setTimeout(() => {
+                typeText('Integrity: 78%')
+                setTimeout(() => {
+                  typeText('Warning: Encryption detected.')
+                  setTimeout(() => {
+                      typeText('>> Message from REMANENCE: <<')
+                      typeText('>>"J’ai peur. Je sais qu’il me traque…"<<')
+                      typeText('Next step: DECRYPT REMANANCE')
+                    }, 1000)
+                  }, 1000)
+                }, 1000)
+            }, 1000)
+          }, 7000)
+        
+      } else {
+        typeText('Initiating isolate for program: ' + target)
+        typeText('Scanning grid sectors...')
+        setTimeout(() => {
+          typeText('ERROR: Program not found or access restricted')
+          typeText('Try another search parameter or verify program designation')
+        }, 2000)
       }
     }
   } else {
-    terminalContent.value.push('Command not recognized. Type "HELP" for available commands')
+    typeText('Command not recognized. Type "HELP" for available commands')
   }
-  
-  commandHistory.value.push(commandInput.value)
-  historyIndex.value = commandHistory.value.length
-  
-  commandInput.value = ''
-  
-  setTimeout(() => {
-    const terminalOutput = document.querySelector('.terminal-output')
-    if (terminalOutput) {
-      terminalOutput.scrollTop = terminalOutput.scrollHeight
-    }
-  }, 0)
+}
+
+// Handle closing the log window
+const closeLogWindow = () => {
+  showLogWindow.value = false
 }
 
 const navigateHistory = (direction: 'up' | 'down') => {
@@ -280,18 +421,28 @@ onMounted(() => {
     stopDrag()
     stopResize()
   })
+  
+  // Use typing effect for initializing messages
   setTimeout(() => {
-    if (gridStore.gridAccessed) {
-      terminalContent.value.push('Vous êtes connectées à la grille, faites vite !')
-      terminalContent.value.push('CLU ne doit surtout pas vous trouver !')
-    } else {
-      terminalContent.value.push('System initialized')
-      terminalContent.value.push('Bienvenue, Vous êtes projetées dans une instance de simulation.')
-      terminalContent.value.push('Mission : retrouver REMANENCE. Progression : 0%.')
-      terminalContent.value.push('Chaque programme suit une fonction. Mais certaines... transcendent leur code.')
-      terminalContent.value.push('Ready for input. Type "HELP" for available commands')
-    }
-  }, 1500)
+    terminalContent.value = [] // Clear initial text
+    
+    typeText('TRON OS v1.0.0')
+    typeText('Copyright © ENCOM 2024')
+    typeText('Initiating system...')
+    
+    setTimeout(() => {
+      if (gridStore.gridAccessed) {
+        typeText('Vous êtes connectées à la grille, faites vite !')
+        typeText('CLU ne doit surtout pas vous trouver !')
+      } else {
+        typeText('System initialized')
+        typeText('Bienvenue, Vous êtes projetées dans une instance de simulation.')
+        typeText('Mission : retrouver REMANENCE. Progression : 0%.')
+        typeText('Chaque programme suit une fonction. Mais certaines... transcendent leur code.')
+        typeText('Ready for input. Type "HELP" for available commands')
+      }
+    }, 1500)
+  }, 500)
 })
 
 onBeforeUnmount(() => {
@@ -356,6 +507,9 @@ onBeforeUnmount(() => {
       </div>
     </div>
   </div>
+  
+  <!-- Fenêtre de log qui apparaît lors de la commande LOG BRADLEY -->
+  <LogWindow v-if="showLogWindow" @close="closeLogWindow" />
 </template>
 
 <style scoped lang="scss">

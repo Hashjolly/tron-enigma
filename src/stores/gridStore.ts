@@ -5,6 +5,7 @@ export const useGridStore = defineStore('grid', () => {
   // État
   const gridAccessed = ref(false)
   const remanenceFound = ref(false)
+  const remanenceIsolated = ref(false)
   const countdownStarted = ref(false)
   const timeRemaining = ref(60 * 60) // 60 minutes en secondes
   const isSurging = ref(false)
@@ -96,6 +97,7 @@ export const useGridStore = defineStore('grid', () => {
   return {
     gridAccessed,
     remanenceFound,
+    remanenceIsolated,
     countdownStarted,
     timeRemaining,
     isSurging,

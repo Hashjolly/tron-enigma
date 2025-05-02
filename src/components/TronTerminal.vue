@@ -46,6 +46,12 @@ const resizeStartY = ref(0)
 const resizeStartWidth = ref(0)
 const resizeStartHeight = ref(0)
 
+// Variables for RESTORE functionality
+const showPasswordModal = ref(false)
+const passwordInput = ref('')
+const passwordAttempts = ref(0)
+const passwordError = ref('')
+
 const startDrag = (event: MouseEvent) => {
   if ((event.target as HTMLElement).closest('.terminal-controls')) {
     return
@@ -236,6 +242,13 @@ const addCommandToTerminal = () => {
     typeText('- ACCESS GRID: Connect to the Grid')
     typeText('- LOG <USER>: Access to an user data')
     typeText('- TRACE <PROGRAM>: Locate the program of your choice')
+    if (gridStore.remanenceIsolated) {
+      typeText('- ISOLATE <PROGRAM>: Isolate the program of your choice')
+      typeText('- DECRYPT <PROGRAM> WITH <KEY>: Decrypt the program of your choice')
+    }
+    if (gridStore.remanenceDecrypted) {
+      typeText('- RESTORE <PROGRAM>: Restore fragmented program data')
+    }
   } else if (command.includes('CLEAR')) {
     terminalContent.value = []
   } else if (command.includes('SYS INFO')) {
@@ -365,12 +378,143 @@ const addCommandToTerminal = () => {
         }, 2000)
       }
     }
+  } else if (command.startsWith('DECRYPT ')) {
+    if (!gridStore.remanenceIsolated) {
+      typeText('ERROR: REMANENCE not isolated')
+      typeText('Please use ISOLATE command first')
+    } else {
+      const parts = command.replace('DECRYPT ', '').split(' WITH ')
+      const target = parts[0].trim()
+      const password = parts[1]?.trim()
+
+      if (target === 'REMANENCE' || target === 'REMANANCE') {
+        console.log(password)
+        if (password === undefined) {
+          typeText('ERROR: Une clé de décryptage est nécessaire')
+          typeText('Please use DECRYPT <PROGRAM> WITH <KEY>')
+        } else if (password === 'ECHO') {
+          gridStore.remanenceDecrypted = true
+          let loadingDots = 0
+          terminalContent.value.push('Decrypting data cluster...')
+          const loadingInterval = setInterval(() => {
+        loadingDots = (loadingDots + 1) % 3
+        terminalContent.value[terminalContent.value.length - 1] = 
+          'Decrypting data cluster' + '.' + '.'.repeat(loadingDots)
+          }, 500)
+
+          setTimeout(() => {
+        clearInterval(loadingInterval)
+        setTimeout(() => {
+          typeText('Decryption finished.')
+          setTimeout(() => {
+            typeText('Partial fragments recovered:')
+            setTimeout(() => {
+          typeText('[R] [E] [M] [_] [_] [E] [_] [_] [C] [E]')
+          typeText('>> Message from REMANENCE: <<')
+          typeText('>>"CLU ve_t me sup_r_mer. Il a p_ur _e moi. "<<')
+          typeText('>>"Il a p_ur... de c_ que je re_sens "<<')
+          setTimeout(() => {
+            typeText('Data stability: 45%')
+            typeText('Next step: RESTORE FRAGMENTS')
+          }, 1000)
+            }, 1000)
+          }, 1000)
+        }, 1000)
+          }, 7000)
+        } else {
+          typeText('ERROR: Invalid decryption key.')
+          typeText('Please verify the key and try again.')
+        }
+      } else {
+        typeText('ERROR: Target not recognized or not isolated.')
+        typeText('Please use ISOLATE command first.')
+      }
+    }
+  } else if (command.startsWith('RESTORE ')) {
+    if (!gridStore.remanenceDecrypted) {
+      typeText('ERROR: Fragmented program data not found')
+      typeText('Please decrypt the program first')
+    } else {
+      const target = command.replace('RESTORE ', '').trim()
+      
+      if (target === 'REMANENCE' || target === 'REMANANCE') {
+        // Afficher la modal pour saisir le mot de passe
+        passwordError.value = ''
+        showPasswordModal.value = true
+      } else {
+        typeText('ERROR: Unknown program designation')
+        typeText('Please specify a valid program to restore')
+      }
+    }
   } else {
     typeText('Command not recognized. Type "HELP" for available commands')
   }
 }
 
-// Handle closing the log window
+// Fonction pour vérifier le mot de passe RESTORE
+const checkRestorePassword = () => {
+  const correctPassword = import.meta.env.VITE_APP_RESTORE_KEY
+
+  if (passwordInput.value === correctPassword) {
+    // Mot de passe correct
+    showPasswordModal.value = false
+    passwordInput.value = ''
+    passwordAttempts.value = 0
+    
+    // Animation de restauration
+    let loadingDots = 0
+    terminalContent.value.push('Attempting restoration...')
+    const loadingInterval = setInterval(() => {
+      loadingDots = (loadingDots + 1) % 4
+      terminalContent.value[terminalContent.value.length - 1] = 
+        'Attempting restoration' + '.'.repeat(loadingDots)
+    }, 500)
+
+    setTimeout(() => {
+      clearInterval(loadingInterval)
+      setTimeout(() => {
+        typeText('Matrix repair initiated.')
+        setTimeout(() => {
+          typeText('Data sequence re-aligned:')
+          setTimeout(() => {
+            typeText('[R] [E] [M] [A] [N] [E] [N] [C] [E]:')
+            setTimeout(() => {
+              typeText('>> REMANENCE STATUS: ACTIVE')
+              typeText('>> "Je suis là. Je suis encore là."')
+              typeText('>> "Merci d\'avoir cru en moi."')
+              typeText('>> "Le chemin que tu cherches est dans les hauteurs."')
+              typeText('Extraction possible')
+              typeText('EXTRACT REMANANCE')
+            }, 1000)
+          }, 1000)
+        }, 1000)
+      }, 1000)
+    }, 7000)
+    
+  } else {
+    // Mot de passe incorrect
+    passwordAttempts.value++
+    
+    if (passwordAttempts.value >= 3) {
+      // Trop de tentatives échouées
+      showPasswordModal.value = false
+      passwordInput.value = ''
+      typeText('ERROR: Too many failed attempts')
+      typeText('System protection protocol engaged')
+      typeText('RESTORE command temporarily disabled')
+      passwordAttempts.value = 0
+    } else {
+      // Montrer l'erreur dans la fenêtre modale
+      passwordError.value = `Invalid password. Attempts: ${passwordAttempts.value}/3`
+    }
+  }
+}
+
+const closePasswordModal = () => {
+  showPasswordModal.value = false
+  passwordInput.value = ''
+}
+
 const closeLogWindow = () => {
   showLogWindow.value = false
 }
@@ -567,6 +711,35 @@ defineExpose({
         />
       </div>
     </div>
+
+    <!-- Fenêtre modale pour le mot de passe RESTORE -->
+    <div class="password-modal" v-if="showPasswordModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="modal-title">RESTORATION PROTOCOL</div>
+          <div class="modal-close" @click="closePasswordModal">×</div>
+        </div>
+        <div class="modal-body">
+          <p>Enter authorization key to proceed with restoration:</p>
+          <div class="input-group">
+            <input 
+              type="password" 
+              v-model="passwordInput" 
+              class="password-input"
+              @keyup.enter="checkRestorePassword"
+              placeholder="Enter key"
+              autofocus
+            />
+          </div>
+          <div class="error-message" v-if="passwordError">{{ passwordError }}</div>
+        </div>
+        <div class="modal-footer">
+          <button @click="checkRestorePassword" class="confirm-button">CONFIRM</button>
+          <button @click="closePasswordModal" class="cancel-button">CANCEL</button>
+        </div>
+      </div>
+    </div>
+    
   </div>
   
   <!-- Fenêtre de log qui apparaît lors de la commande LOG BRADLEY -->
@@ -861,5 +1034,134 @@ defineExpose({
 .terminal-input::after {
   content: '_';
   animation: blink 1s step-end infinite;
+}
+
+/* Style pour la fenêtre modale du mot de passe */
+.password-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.modal-content {
+  width: 400px;
+  background-color: rgba(0, 20, 40, 0.95);
+  border: 2px solid var(--tron-blue);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 0 20px var(--tron-blue), 0 0 40px rgba(0, 204, 255, 0.4);
+  animation: appear 0.3s ease;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 15px;
+  background: linear-gradient(to right, var(--tron-blue-dark), var(--tron-background));
+  border-bottom: 1px solid var(--tron-blue);
+}
+
+.modal-title {
+  color: var(--tron-blue-light);
+  font-weight: bold;
+  font-size: 16px;
+  text-shadow: 0 0 5px var(--tron-blue);
+}
+
+.modal-close {
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--tron-text-color);
+  
+  &:hover {
+    color: var(--tron-blue-light);
+    text-shadow: 0 0 8px var(--tron-blue);
+  }
+}
+
+.modal-body {
+  padding: 20px;
+  
+  p {
+    color: var(--tron-text-color);
+    margin-bottom: 15px;
+  }
+}
+
+.password-input {
+  width: 100%;
+  padding: 10px;
+  background-color: rgba(0, 10, 30, 0.7);
+  border: 1px solid var(--tron-blue);
+  border-radius: 4px;
+  color: var(--tron-blue-light);
+  font-family: 'Consolas', monospace;
+  font-size: 16px;
+  outline: none;
+  
+  &:focus {
+    box-shadow: 0 0 10px var(--tron-blue);
+  }
+}
+
+.error-message {
+  color: #ff6b6b;
+  margin-top: 10px;
+  font-size: 14px;
+  text-shadow: 0 0 5px rgba(255, 107, 107, 0.7);
+}
+
+.modal-footer {
+  padding: 15px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid rgba(0, 204, 255, 0.3);
+}
+
+button.confirm-button, 
+button.cancel-button {
+  padding: 8px 15px;
+  border-radius: 4px;
+  font-family: 'Consolas', monospace;
+  font-size: 14px;
+  cursor: pointer;
+  border: 1px solid;
+  transition: all 0.2s ease;
+}
+
+button.confirm-button {
+  background-color: rgba(0, 20, 40, 0.9);
+  color: var(--tron-blue-light);
+  border-color: var(--tron-blue);
+  
+  &:hover {
+    background-color: rgba(0, 60, 100, 0.9);
+    box-shadow: 0 0 10px var(--tron-blue);
+  }
+}
+
+button.cancel-button {
+  background-color: rgba(40, 10, 10, 0.9);
+  color: #ff6b6b;
+  border-color: #ff6b6b;
+  
+  &:hover {
+    background-color: rgba(60, 20, 20, 0.9);
+    box-shadow: 0 0 10px #ff6b6b;
+  }
+}
+
+@keyframes appear {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>

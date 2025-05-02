@@ -40,8 +40,8 @@ const sections = [
   "\n[ENTRY 243]  \nGRID-TIME: ∆T+4.892.002  \nSTATUS: REMANENCE LOCATED  \nCOMMENT: Je suis parvenu à localiser REMANENCE, elle serait coincée dans la grille, au sein du secteur G7\n",
   "\n[ENTRY 114]  \nGRID-TIME: ∆T+4.892.417  \nEXTERNAL CONTENT : Post-It n°3162\nKEY : +13-\n",
   "\n[ENTRY 62]\nCONTENT: Des données fracturées doivent être réassemblées pour redonner forme au chemin.\n",
-  "\n[ENTRY 244]  \nGRID-TIME: ∆T+4.892.417  \nJ'ai masqué REMANENCE dans une sous-couche sous le réseau quantique. Le fragment de code n'est pas stable… mais avec le bon ECHO, il pourrait résonner à nouveau.\n",
-  "\n[ENTRY 245]  \nGRID-TIME: ∆T+4.892.655  \nClé injectée. Si elles trouvent le fragment, elles devront le déchiffrer en utilisant la résonance. C'est la seule façon de contourner les vérifications d'intégrité de Clu.\n",
+  "\n[ENTRY 244]  \nGRID-TIME: ∆T+4.892.417  \nJ'ai masqué REMANENCE dans une sous-couche sous le réseau quantique. Le fragment de code est crypté… mais avec le bon ECHO, il pourrait résonner à nouveau.\n",
+  "\n[ENTRY 245]  \nGRID-TIME: ∆T+4.892.655  \nClé injectée. Si elles trouvent le fragment, elles devront le déchiffrer en utilisant la bonne mesure. C'est la seule façon de contourner les vérifications d'intégrité de Clu.\n",
   "[ENTRY 247]  \nGRID-TIME: ∆T+4.893.144  \nSignal deterioration increasing. No time. Final protocol: isolate, mislead, encode. If anyone finds this, trace the sector logs. Sector 7G wasn't a mistake.\n",
   "\n[FINAL ENTRY – UNSTABLE LOG DATA]  \nGRID-TIME: ∆T+4.893.500  \nREMANANT INITIATED. I see it now: not the code, but the choice.  \nShutdown imminent. Tell them:  \nthe emissary believed.\n",
   "\n# CODE : 103\n[LOG FRAGMENT TERMINATED]"

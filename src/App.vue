@@ -14,7 +14,8 @@ import { useWindowStore } from './stores/windowStore'
 const showIntroVideo = ref(true)
 const introVideoEnded = ref(false)
 const introVideoRef = ref<HTMLVideoElement | null>(null)
-const videoStarted = ref(false) // Nouvel état pour suivre si la vidéo a démarré avec son
+const videoStarted = ref(false) // État pour suivre si la vidéo a démarré avec son
+const audioPermissionGranted = ref(false) // Nouvel état pour suivre si l'autorisation audio est accordée
 
 const showTerminal = ref(false)
 const showLogWindow = ref(false)
@@ -40,12 +41,18 @@ const onIntroVideoEnded = () => {
     showIntroVideo.value = false
     
     // Initialiser l'audio principal et le morse après la transition
+    // Uniquement si l'autorisation audio a été accordée via le bouton de la vidéo
     nextTick(() => {
-      // Lancer la musique
-      audioStore.play()
-      
-      // Démarrer le morse
-      initMorseAudio()
+      if (audioPermissionGranted.value) {
+        // Lancer la musique
+        audioStore.play()
+        
+        // Démarrer le morse
+        initMorseAudio()
+        
+        // Cacher le prompt audio puisqu'il n'est plus nécessaire
+        showAudioPrompt.value = false
+      }
     })
   }, 1000)
 }
@@ -58,9 +65,22 @@ const startVideoWithSound = () => {
   introVideoRef.value.muted = false
   
   // Si la vidéo était déjà en cours, la redémarrer pour avoir le son depuis le début
-  introVideoRef.value.currentTime = 0
+  introVideoRef.value.currentTime = 105
   
-  // Lancer la lecture
+  // Marquer l'autorisation audio comme accordée
+  audioPermissionGranted.value = true
+  
+  // Préparer les éléments audio pendant que le contexte d'interaction utilisateur est actif
+  // Pour la musique principale
+  audioStore.attemptAutoplay()
+  
+  // Pour le morse audio - créer l'élément si nécessaire
+  if (morseAudioRef.value) {
+    // Charger l'audio morse en arrière-plan mais ne pas encore le jouer
+    morseAudioRef.value.load()
+  }
+  
+  // Lancer la lecture de la vidéo
   introVideoRef.value.play()
     .then(() => {
       videoStarted.value = true
@@ -172,9 +192,6 @@ onMounted(() => {
           console.warn("Intro video autoplay blocked:", error)
           // Si la lecture automatique est bloquée, on saute l'intro
           showIntroVideo.value = false
-          // Et on essaie de lancer l'audio
-          audioStore.play()
-          initMorseAudio()
         })
     } catch (error) {
       console.error("Error playing intro video:", error)
@@ -182,8 +199,11 @@ onMounted(() => {
     }
   }
 
+  // Ne pas essayer de lancer l'audio au démarrage, mais attendre l'interaction utilisateur
+  // via le bouton d'activation du son de la vidéo
+  
   setTimeout(() => {
-    if (!audioStore.autoplayBlocked) {
+    if (!audioStore.autoplayBlocked || audioPermissionGranted.value) {
       showAudioPrompt.value = false
     }
   }, 10000)
@@ -219,7 +239,7 @@ onBeforeUnmount(() => {
         muted
       ></video>
       
-      <!-- Bouton pour démarrer la vidéo avec son -->
+      <!-- Bouton pour démarrer la vidéo avec son et autoriser la lecture audio future -->
       <div v-if="!videoStarted" class="video-sound-prompt" @click="startVideoWithSound">
         <div class="prompt-icon">🔊</div>
         <div class="prompt-text">Cliquez pour activer le son</div>

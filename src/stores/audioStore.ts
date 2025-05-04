@@ -134,6 +134,8 @@ export const useAudioStore = defineStore('audio', () => {
   // Actions
   function play() {
     isPlaying.value = true
+    next() // Passer à la piste suivante si nécessaire
+    console.log(isPlaying.value)
   }
   
   function pause() {

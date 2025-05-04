@@ -20,7 +20,7 @@ const initCanvas = () => {
 
 // Variables pour suivre le temps pour les animations
 let lastTimestamp = 0
-const animationSpeed = 800 // Vitesse d'animation des lignes horizontales
+const animationSpeed = 700 // Vitesse d'animation des lignes horizontales
 const fogAnimationSpeed = 5000 // Vitesse d'animation de la brume (plus lente)
 
 // Paramètres pour la brume

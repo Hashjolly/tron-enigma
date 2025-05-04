@@ -52,6 +52,11 @@ const passwordInput = ref('')
 const passwordAttempts = ref(0)
 const passwordError = ref('')
 
+// Variables for secret file functionality
+const showSecretFilePrompt = ref(false)
+const showVideo = ref(false)
+const videoPath = ref('')
+
 const startDrag = (event: MouseEvent) => {
   if ((event.target as HTMLElement).closest('.terminal-controls')) {
     return
@@ -217,7 +222,7 @@ const scrollToBottom = () => {
 }
 
 // Define emits for parent component communication
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'stopMorse'])
 
 const addCommandToTerminal = () => {
   if (!commandInput.value.trim()) return
@@ -249,6 +254,7 @@ const addCommandToTerminal = () => {
     if (gridStore.remanenceDecrypted) {
       typeText('- RESTORE <PROGRAM>: Restore fragmented program data')
     }
+    typeText('- STOP MORSE: Disable morse code transmission')
   } else if (command.includes('CLEAR')) {
     terminalContent.value = []
   } else if (command.includes('SYS INFO')) {
@@ -397,29 +403,34 @@ const addCommandToTerminal = () => {
           let loadingDots = 0
           terminalContent.value.push('Decrypting data cluster...')
           const loadingInterval = setInterval(() => {
-        loadingDots = (loadingDots + 1) % 3
-        terminalContent.value[terminalContent.value.length - 1] = 
-          'Decrypting data cluster' + '.' + '.'.repeat(loadingDots)
+            loadingDots = (loadingDots + 1) % 3
+            terminalContent.value[terminalContent.value.length - 1] = 
+              'Decrypting data cluster' + '.' + '.'.repeat(loadingDots)
           }, 500)
 
           setTimeout(() => {
-        clearInterval(loadingInterval)
-        setTimeout(() => {
-          typeText('Decryption finished.')
-          setTimeout(() => {
-            typeText('Partial fragments recovered:')
+            clearInterval(loadingInterval)
             setTimeout(() => {
-          typeText('[R] [E] [M] [_] [_] [E] [_] [_] [C] [E]')
-          typeText('>> Message from REMANENCE: <<')
-          typeText('>>"CLU ve_t me sup_r_mer. Il a p_ur _e moi. "<<')
-          typeText('>>"Il a p_ur... de c_ que je re_sens "<<')
-          setTimeout(() => {
-            typeText('Data stability: 45%')
-            typeText('Next step: RESTORE FRAGMENTS')
-          }, 1000)
+              typeText('Decryption finished.')
+              setTimeout(() => {
+                typeText('Partial fragments recovered:')
+                setTimeout(() => {
+                  typeText('[R] [E] [M] [_] [_] [E] [_] [_] [C] [E]')
+                  typeText('>> Message from REMANENCE: <<')
+                  typeText('>>"CLU ve_t me sup_r_mer. Il a p_ur _e moi. "<<')
+                  typeText('>>"Il a p_ur... de c_ que je re_sens "<<')
+                  setTimeout(() => {
+                    typeText('Data stability: 45%')
+                    typeText('Next step: RESTORE FRAGMENTS')
+                    
+                    // Ajout du prompt pour le dossier secret après un court délai
+                    setTimeout(() => {
+                      showSecretFilePrompt.value = true
+                    }, 4000)
+                  }, 1000)
+                }, 1000)
+              }, 1000)
             }, 1000)
-          }, 1000)
-        }, 1000)
           }, 7000)
         } else {
           typeText('ERROR: Invalid decryption key.')
@@ -446,6 +457,11 @@ const addCommandToTerminal = () => {
         typeText('Please specify a valid program to restore')
       }
     }
+  } else if (command === 'STOP MORSE') {
+    // Arrêter la transmission morse
+    emit('stopMorse')
+    typeText('Morse code transmission stopped.')
+    typeText('Signal terminated. Channel closed.')
   } else {
     typeText('Command not recognized. Type "HELP" for available commands')
   }
@@ -508,6 +524,24 @@ const checkRestorePassword = () => {
       passwordError.value = `Invalid password. Attempts: ${passwordAttempts.value}/3`
     }
   }
+}
+
+// Fonction pour ouvrir le dossier secret (afficher la vidéo)
+const openSecretFile = () => {
+  showSecretFilePrompt.value = false
+  videoPath.value = 'videos/video2_flynn.mp4'
+  showVideo.value = true
+}
+
+// Fonction pour fermer le prompt du dossier secret
+const closeSecretFilePrompt = () => {
+  showSecretFilePrompt.value = false
+}
+
+// Fonction pour gérer la fin de la vidéo
+const videoEnded = () => {
+  showVideo.value = false
+  typeText('>> TRANSMISSION TERMINÉE <<')
 }
 
 const closePasswordModal = () => {
@@ -737,6 +771,31 @@ defineExpose({
           <button @click="checkRestorePassword" class="confirm-button">CONFIRM</button>
           <button @click="closePasswordModal" class="cancel-button">CANCEL</button>
         </div>
+      </div>
+    </div>
+    
+    <!-- Prompt pour le dossier secret -->
+    <div class="secret-file-prompt" v-if="showSecretFilePrompt">
+      <div class="prompt-content">
+        <div class="prompt-message">DOSSIER SECRET DÉCOUVERT. VOULEZ-VOUS LE CONSULTER ?</div>
+        <div class="prompt-buttons">
+          <button @click="openSecretFile" class="confirm-button">OUI</button>
+          <button @click="closeSecretFilePrompt" class="cancel-button">NON</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Overlay pour la vidéo -->
+    <div class="video-overlay" v-if="showVideo">
+      <div class="video-container">
+        <video 
+          :src="videoPath" 
+          controls 
+          autoplay 
+          @ended="videoEnded"
+          class="secret-video"
+        ></video>
+        <button @click="videoEnded" class="close-video">×</button>
       </div>
     </div>
     
@@ -1157,6 +1216,94 @@ button.cancel-button {
   &:hover {
     background-color: rgba(60, 20, 20, 0.9);
     box-shadow: 0 0 10px #ff6b6b;
+  }
+}
+
+/* Style pour le prompt du dossier secret */
+.secret-file-prompt {
+  position: absolute;
+  bottom: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(0, 20, 40, 0.9);
+  border: 2px solid var(--tron-blue);
+  border-radius: 8px;
+  padding: 15px;
+  width: 80%;
+  max-width: 500px;
+  box-shadow: 0 0 20px var(--tron-blue), 0 0 40px rgba(0, 204, 255, 0.4);
+  animation: appear 0.3s ease;
+  z-index: 102;
+}
+
+.prompt-content {
+  text-align: center;
+}
+
+.prompt-message {
+  color: var(--tron-blue-light);
+  font-weight: bold;
+  font-size: 18px;
+  margin-bottom: 15px;
+  text-shadow: 0 0 5px var(--tron-blue);
+}
+
+.prompt-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+}
+
+/* Video overlay styles */
+.video-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+}
+
+.video-container {
+  position: relative;
+  width: 94%;
+  aspect-ratio: 16/9;
+  background: #000;
+  border: 2px solid var(--tron-blue);
+  border-radius: 8px;
+  box-shadow: 0 0 30px var(--tron-blue);
+}
+
+.secret-video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.close-video {
+  position: absolute;
+  top: -15px;
+  right: -15px;
+  width: 30px;
+  height: 30px;
+  background-color: rgba(0, 20, 40, 0.9);
+  border: 2px solid var(--tron-blue);
+  border-radius: 50%;
+  color: var(--tron-blue-light);
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 301;
+  
+  &:hover {
+    background-color: rgba(0, 60, 100, 0.9);
+    box-shadow: 0 0 10px var(--tron-blue);
   }
 }
 

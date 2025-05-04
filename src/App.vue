@@ -10,6 +10,12 @@ import { useAudioStore } from './stores/audioStore'
 import { useGridStore } from './stores/gridStore'
 import { useWindowStore } from './stores/windowStore'
 
+// État pour la vidéo d'intro
+const showIntroVideo = ref(true)
+const introVideoEnded = ref(false)
+const introVideoRef = ref<HTMLVideoElement | null>(null)
+const videoStarted = ref(false) // Nouvel état pour suivre si la vidéo a démarré avec son
+
 const showTerminal = ref(false)
 const showLogWindow = ref(false)
 const audioStore = useAudioStore()
@@ -18,6 +24,100 @@ const windowStore = useWindowStore()
 const showAudioPrompt = ref(true)
 const terminalRef = ref(null)
 const logWindowRef = ref(null)
+
+// Référence à l'élément audio morse
+const morseAudioRef = ref<HTMLAudioElement | null>(null)
+const morseVolume = ref(0.1) // Volume initial très bas
+const maxMorseVolume = 0.4 // Volume maximum réduit
+const volumeIncrementInterval = ref<number | null>(null)
+
+// Fonction appelée quand la vidéo d'intro se termine
+const onIntroVideoEnded = () => {
+  introVideoEnded.value = true
+  
+  // Transition en fondu
+  setTimeout(() => {
+    showIntroVideo.value = false
+    
+    // Initialiser l'audio principal et le morse après la transition
+    nextTick(() => {
+      // Lancer la musique
+      audioStore.play()
+      
+      // Démarrer le morse
+      initMorseAudio()
+    })
+  }, 1000)
+}
+
+// Fonction pour démarrer la vidéo avec son après interaction utilisateur
+const startVideoWithSound = () => {
+  if (!introVideoRef.value || videoStarted.value) return
+  
+  // Retirer le mode silencieux
+  introVideoRef.value.muted = false
+  
+  // Si la vidéo était déjà en cours, la redémarrer pour avoir le son depuis le début
+  introVideoRef.value.currentTime = 0
+  
+  // Lancer la lecture
+  introVideoRef.value.play()
+    .then(() => {
+      videoStarted.value = true
+    })
+    .catch(error => {
+      console.error("Impossible de lire la vidéo avec son:", error)
+    })
+}
+
+// Initialiser l'audio morse
+const initMorseAudio = () => {
+  if (!morseAudioRef.value) return
+  
+  morseAudioRef.value.volume = morseVolume.value
+  morseAudioRef.value.loop = true
+  
+  // Tentative de lecture
+  morseAudioRef.value.play()
+    .catch(error => {
+      console.warn("Morse audio autoplay blocked:", error)
+      // On va tenter de démarrer l'audio lors d'une interaction utilisateur
+    })
+  
+  // Programmer l'augmentation progressive du volume (de 0.001 à 0.02 en 30min)
+  const totalTimeMs = 30 * 60 * 1000 // 30 minutes en millisecondes
+  const volumeRange = maxMorseVolume - morseVolume.value
+  const updateIntervalMs = 30000 // Mise à jour toutes les 30 secondes
+  const incrementPerInterval = volumeRange / (totalTimeMs / updateIntervalMs)
+  
+  volumeIncrementInterval.value = window.setInterval(() => {
+    morseVolume.value = Math.min(maxMorseVolume, morseVolume.value + incrementPerInterval)
+    
+    if (morseAudioRef.value) {
+      morseAudioRef.value.volume = morseVolume.value
+    }
+    
+    // Si on atteint le volume max, on arrête l'intervalle
+    if (morseVolume.value >= maxMorseVolume && volumeIncrementInterval.value) {
+      clearInterval(volumeIncrementInterval.value)
+      volumeIncrementInterval.value = null
+    }
+  }, updateIntervalMs)
+}
+
+// Fonction pour arrêter l'audio morse
+const stopMorseAudio = () => {
+  if (morseAudioRef.value) {
+    morseAudioRef.value.pause();
+    morseAudioRef.value.currentTime = 0;
+  }
+  
+  // Arrêter également l'intervalle d'augmentation du volume
+  if (volumeIncrementInterval.value) {
+    clearInterval(volumeIncrementInterval.value);
+    volumeIncrementInterval.value = null;
+  }
+}
 
 // Mettre en place un bouton audio dans la TaskBar
 const toggleAudio = () => {
@@ -32,6 +132,12 @@ const enableAudio = () => {
     document.querySelector('audio')?.play()
       .catch(() => console.log('Play still failed'))
     showAudioPrompt.value = false
+  }
+  
+  // Essayer aussi de démarrer l'audio morse
+  if (morseAudioRef.value && morseAudioRef.value.paused) {
+    morseAudioRef.value.play()
+      .catch(error => console.warn("Morse audio still blocked:", error))
   }
 }
 
@@ -58,57 +164,115 @@ const handleRestoreWindow = (windowId: string) => {
 
 // Cacher le prompt après un certain temps
 onMounted(() => {
+  // Démarrer la vidéo d'intro (initialement en mode muet pour permettre l'autoplay)
+  if (introVideoRef.value) {
+    try {
+      introVideoRef.value.play()
+        .catch(error => {
+          console.warn("Intro video autoplay blocked:", error)
+          // Si la lecture automatique est bloquée, on saute l'intro
+          showIntroVideo.value = false
+          // Et on essaie de lancer l'audio
+          audioStore.play()
+          initMorseAudio()
+        })
+    } catch (error) {
+      console.error("Error playing intro video:", error)
+      showIntroVideo.value = false
+    }
+  }
+
   setTimeout(() => {
     if (!audioStore.autoplayBlocked) {
       showAudioPrompt.value = false
     }
   }, 10000)
+  
+  // Initialiser l'audio morse
+  nextTick(() => {
+    initMorseAudio()
+  })
 })
 
-// Nettoyage du compteur lors de la destruction du composant
+// Nettoyage des ressources lors de la destruction du composant
 onBeforeUnmount(() => {
   gridStore.stopCountdown()
+  
+  // Nettoyer l'intervalle d'augmentation du volume
+  if (volumeIncrementInterval.value) {
+    clearInterval(volumeIncrementInterval.value)
+    volumeIncrementInterval.value = null
+  }
 })
 </script>
 
 <template>
-  <div class="tron-container" @click="enableAudio" :class="{ 'surge-mode': gridStore.isSurging }">
-    <GridBackground />
-    
-    <!-- Compte à rebours en haut de l'écran -->
-    <div v-if="gridStore.countdownStarted" class="global-countdown-container">
-      <div class="global-countdown" :class="{ 'warning': gridStore.timeRemaining < 600 }">
-        {{ gridStore.formattedTime }}
+  <div>
+    <!-- Overlay de la vidéo d'intro -->
+    <div v-if="showIntroVideo" class="intro-video-container" :class="{ 'fade-out': introVideoEnded }">
+      <video 
+        ref="introVideoRef" 
+        class="intro-video" 
+        src="/videos/video1.mp4" 
+        @ended="onIntroVideoEnded"
+        autoplay 
+        muted
+      ></video>
+      
+      <!-- Bouton pour démarrer la vidéo avec son -->
+      <div v-if="!videoStarted" class="video-sound-prompt" @click="startVideoWithSound">
+        <div class="prompt-icon">🔊</div>
+        <div class="prompt-text">Cliquez pour activer le son</div>
       </div>
     </div>
-    
-    <div class="content">
-      <TronTerminal 
-        ref="terminalRef"
-        v-if="showTerminal" 
-        @close="showTerminal = false" 
-      />
-      <LogWindow 
-        ref="logWindowRef"
-        v-if="showLogWindow" 
-        @close="showLogWindow = false" 
-      />
-      <TronAudioPlayer />
-    </div>
-    
-    <TaskBar 
-      @openTerminal="showTerminal = true" 
-      @toggleAudio="toggleAudio"
-      @restoreWindow="handleRestoreWindow"
-    />
-    
-    <!-- Add prominent audio enable button -->
-    <div v-if="showAudioPrompt && audioStore.autoplayBlocked" class="audio-prompt" @click.stop="enableAudio">
-      <div class="prompt-content">
-        <div class="prompt-icon">▶️</div>
-        <div class="prompt-text">Cliquez pour activer l'ambiance sonore</div>
+
+    <!-- Contenu principal de l'application -->
+    <div class="tron-container" @click="enableAudio" :class="{ 'surge-mode': gridStore.isSurging, 'hidden': showIntroVideo }">
+      <GridBackground />
+      
+      <!-- Audio en arrière-plan pour le morse -->
+      <audio 
+        ref="morseAudioRef" 
+        src="/audio/morse/morse-secret.wav" 
+        preload="auto"
+      ></audio>
+      
+      <!-- Compte à rebours en haut de l'écran -->
+      <div v-if="gridStore.countdownStarted" class="global-countdown-container">
+        <div class="global-countdown" :class="{ 'warning': gridStore.timeRemaining < 600 }">
+          {{ gridStore.formattedTime }}
+        </div>
       </div>
-      <button class="close-prompt" @click.stop="showAudioPrompt = false">×</button>
+      
+      <div class="content">
+        <TronTerminal 
+          ref="terminalRef"
+          v-if="showTerminal" 
+          @close="showTerminal = false"
+          @stopMorse="stopMorseAudio"
+        />
+        <LogWindow 
+          ref="logWindowRef"
+          v-if="showLogWindow" 
+          @close="showLogWindow = false" 
+        />
+        <TronAudioPlayer />
+      </div>
+      
+      <TaskBar 
+        @openTerminal="showTerminal = true" 
+        @toggleAudio="toggleAudio"
+        @restoreWindow="handleRestoreWindow"
+      />
+      
+      <!-- Add prominent audio enable button -->
+      <div v-if="showAudioPrompt && audioStore.autoplayBlocked" class="audio-prompt" @click.stop="enableAudio">
+        <div class="prompt-content">
+          <div class="prompt-icon">▶️</div>
+          <div class="prompt-text">Cliquez pour activer l'ambiance sonore</div>
+        </div>
+        <button class="close-prompt" @click.stop="showAudioPrompt = false">×</button>
+      </div>
     </div>
   </div>
 </template>
@@ -136,6 +300,70 @@ onBeforeUnmount(() => {
 /* Fix font loading method - direct @import with display swap */
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&display=swap');
 
+/* Styles pour la vidéo d'intro */
+.intro-video-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: black;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 1s ease;
+  
+  &.fade-out {
+    opacity: 0;
+  }
+}
+
+/* Ajout du style pour le bouton d'activation du son */
+.video-sound-prompt {
+  position: absolute;
+  bottom: 50px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.7);
+  border: 2px solid white;
+  border-radius: 8px;
+  padding: 12px 20px;
+  gap: 15px;
+  z-index: 10000;
+  cursor: pointer;
+  animation: pulse 2s infinite alternate;
+  
+  .prompt-icon {
+    font-size: 24px;
+    color: white;
+  }
+  
+  .prompt-text {
+    color: white;
+    font-weight: 500;
+    text-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
+  }
+  
+  &:hover {
+    background: rgba(0, 0, 0, 0.9);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+  }
+  
+  @keyframes pulse {
+    from { opacity: 0.8; transform: translateX(-50%) scale(0.98); }
+    to { opacity: 1; transform: translateX(-50%) scale(1); }
+  }
+}
+
+.intro-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -161,6 +389,10 @@ html, body {
   width: 100vw;
   overflow: hidden;
   position: relative;
+  
+  &.hidden {
+    opacity: 0;
+  }
   
   &.surge-mode {
     /* Effet global du mode "surge" sur toute l'application */

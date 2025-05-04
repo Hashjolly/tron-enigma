@@ -17,6 +17,9 @@ const introVideoRef = ref<HTMLVideoElement | null>(null)
 const videoStarted = ref(false) // État pour suivre si la vidéo a démarré avec son
 const audioPermissionGranted = ref(false) // Nouvel état pour suivre si l'autorisation audio est accordée
 
+// État pour la transition glitch
+const showGlitchTransition = ref(false)
+
 const showTerminal = ref(false)
 const showLogWindow = ref(false)
 const audioStore = useAudioStore()
@@ -36,25 +39,32 @@ const volumeIncrementInterval = ref<number | null>(null)
 const onIntroVideoEnded = () => {
   introVideoEnded.value = true
   
-  // Transition en fondu
+  // Afficher l'effet de glitch pendant un moment
+  showGlitchTransition.value = true
+  
+  // Après un délai pour l'effet de glitch, cacher la vidéo et l'effet
   setTimeout(() => {
     showIntroVideo.value = false
     
-    // Initialiser l'audio principal et le morse après la transition
-    // Uniquement si l'autorisation audio a été accordée via le bouton de la vidéo
-    nextTick(() => {
-      if (audioPermissionGranted.value) {
-        // Lancer la musique
-        audioStore.play()
-        
-        // Démarrer le morse
-        initMorseAudio()
-        
-        // Cacher le prompt audio puisqu'il n'est plus nécessaire
-        showAudioPrompt.value = false
-      }
-    })
-  }, 1000)
+    // On laisse l'effet glitch un moment supplémentaire pour la transition
+    setTimeout(() => {
+      showGlitchTransition.value = false
+      
+      // Initialiser l'audio principal et le morse après la transition
+      nextTick(() => {
+        if (audioPermissionGranted.value) {
+          // Lancer la musique
+          audioStore.play()
+          
+          // Démarrer le morse
+          initMorseAudio()
+          
+          // Cacher le prompt audio puisqu'il n'est plus nécessaire
+          showAudioPrompt.value = false
+        }
+      })
+    }, 1200) // Durée de l'effet après que la vidéo a disparu
+  }, 800) // Durée de l'effet pendant que la vidéo est encore visible
 }
 
 // Fonction pour démarrer la vidéo avec son après interaction utilisateur
@@ -65,7 +75,7 @@ const startVideoWithSound = () => {
   introVideoRef.value.muted = false
   
   // Si la vidéo était déjà en cours, la redémarrer pour avoir le son depuis le début
-  introVideoRef.value.currentTime = 105
+  introVideoRef.value.currentTime = 109
   
   // Marquer l'autorisation audio comme accordée
   audioPermissionGranted.value = true
@@ -246,8 +256,23 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
+    <!-- Effet de transition glitch -->
+    <div v-if="showGlitchTransition" class="glitch-overlay">
+      <div class="glitch-container">
+        <div class="glitch-item"></div>
+        <div class="glitch-item"></div>
+        <div class="glitch-item"></div>
+        <div class="glitch-item"></div>
+        <div class="glitch-item"></div>
+      </div>
+    </div>
+
     <!-- Contenu principal de l'application -->
-    <div class="tron-container" @click="enableAudio" :class="{ 'surge-mode': gridStore.isSurging, 'hidden': showIntroVideo }">
+    <div class="tron-container" @click="enableAudio" :class="{ 
+      'surge-mode': gridStore.isSurging, 
+      'hidden': showIntroVideo || showGlitchTransition,
+      'appear-animation': !showIntroVideo && !showGlitchTransition 
+    }">
       <GridBackground />
       
       <!-- Audio en arrière-plan pour le morse -->
@@ -414,6 +439,10 @@ html, body {
     opacity: 0;
   }
   
+  &.appear-animation {
+    animation: app-appear 1.2s ease-out forwards;
+  }
+  
   &.surge-mode {
     /* Effet global du mode "surge" sur toute l'application */
     --tron-blue: var(--surge-color);
@@ -471,6 +500,38 @@ html, body {
         text-shadow: 0 0 2px #ff8800 !important;
       }
     }
+  }
+}
+
+@keyframes app-appear {
+  0% { 
+    opacity: 0;
+    transform: scale(1.05);
+    filter: brightness(2) saturate(1.5) contrast(1.2);
+  }
+  20% {
+    opacity: 0.6;
+    transform: scale(1.02);
+    filter: brightness(1.5) saturate(1.2) contrast(1.1);
+  }
+  30% {
+    opacity: 0.8;
+    transform: scale(1.01);
+    filter: brightness(1.3) saturate(1.1) contrast(1.05);
+  }
+  40% {
+    opacity: 0.4;
+    transform: scale(1.03);
+    filter: brightness(1.7) saturate(1.3);
+  }
+  70% {
+    opacity: 0.7;
+    filter: brightness(1.2) saturate(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: brightness(1) saturate(1) contrast(1);
   }
 }
 
@@ -597,6 +658,138 @@ a {
     0%, 100% { transform: translateX(-50%) translateY(0); }
     50% { transform: translateX(-50%) translateY(-5px); }
   }
+}
+
+/* Effet de transition glitch */
+.glitch-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9990;
+  background-color: rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  animation: glitch-background 0.5s steps(1) infinite;
+}
+
+.glitch-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+.glitch-item {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    linear-gradient(transparent, rgba(0, 204, 255, 0.2)),
+    linear-gradient(90deg, rgba(255, 0, 128, 0.1), rgba(0, 204, 255, 0.2));
+  background-size: 100% 5px, 5px 100%;
+  background-repeat: repeat;
+  mix-blend-mode: overlay;
+  
+  &:nth-child(1) {
+    animation: 
+      glitch-skew 0.3s linear infinite alternate-reverse,
+      glitch-move-1 1.5s ease infinite;
+    background-color: rgba(255, 0, 128, 0.2);
+  }
+  
+  &:nth-child(2) {
+    animation: 
+      glitch-skew 0.5s linear infinite alternate,
+      glitch-move-2 1.7s ease-in-out infinite;
+    background-color: rgba(0, 204, 255, 0.2);
+    mix-blend-mode: difference;
+  }
+  
+  &:nth-child(3) {
+    animation: 
+      glitch-skew 0.7s linear infinite alternate-reverse,
+      glitch-move-3 1.6s ease infinite;
+    background-color: rgba(0, 255, 0, 0.1);
+    mix-blend-mode: screen;
+  }
+  
+  &:nth-child(4) {
+    animation: 
+      glitch-skew 0.2s linear infinite alternate,
+      glitch-move-4 1.4s ease-in-out infinite;
+    background-color: rgba(255, 255, 0, 0.1);
+    mix-blend-mode: lighten;
+  }
+  
+  &:nth-child(5) {
+    animation: 
+      glitch-skew 0.4s linear infinite alternate-reverse,
+      glitch-move-5 1.3s ease infinite;
+    background-image: 
+      linear-gradient(transparent, rgba(0, 0, 0, 0.8)),
+      linear-gradient(90deg, rgba(0, 0, 0, 0.8), transparent);
+    background-size: 100% 3px, 3px 100%;
+    mix-blend-mode: color-burn;
+  }
+}
+
+@keyframes glitch-skew {
+  0% { transform: skew(0deg); }
+  20% { transform: skew(2deg); }
+  40% { transform: skew(-1.5deg); }
+  60% { transform: skew(1deg); }
+  80% { transform: skew(-2deg); }
+  100% { transform: skew(0deg); }
+}
+
+@keyframes glitch-move-1 {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-5px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+
+@keyframes glitch-move-2 {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(5px); }
+  40% { transform: translateX(-5px); }
+  60% { transform: translateX(3px); }
+  80% { transform: translateX(-3px); }
+}
+
+@keyframes glitch-move-3 {
+  0%, 100% { transform: translateY(0); }
+  20% { transform: translateY(-2px); }
+  40% { transform: translateY(2px); }
+  60% { transform: translateY(-1px); }
+  80% { transform: translateY(1px); }
+}
+
+@keyframes glitch-move-4 {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  20% { transform: translateY(2px) scaleY(1.02); }
+  40% { transform: translateY(-2px) scaleY(0.98); }
+  60% { transform: translateY(1px) scaleY(1.01); }
+  80% { transform: translateY(-1px) scaleY(0.99); }
+}
+
+@keyframes glitch-move-5 {
+  0%, 100% { transform: translateX(0) translateY(0); }
+  25% { transform: translateX(2px) translateY(2px); }
+  50% { transform: translateX(-2px) translateY(-2px); }
+  75% { transform: translateX(-2px) translateY(2px); }
+}
+
+@keyframes glitch-background {
+  0%, 100% { background-color: rgba(0, 0, 0, 0.3); }
+  20% { background-color: rgba(0, 50, 100, 0.3); }
+  40% { background-color: rgba(50, 0, 50, 0.3); }
+  60% { background-color: rgba(0, 0, 0, 0.4); }
+  80% { background-color: rgba(20, 40, 60, 0.3); }
 }
 
 @font-face {

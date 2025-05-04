@@ -254,7 +254,7 @@ const addCommandToTerminal = () => {
     if (gridStore.remanenceDecrypted) {
       typeText('- RESTORE <PROGRAM>: Restore fragmented program data')
     }
-    typeText('- STOP MORSE: Disable morse code transmission')
+    // typeText('- STOP MORSE: Disable morse code transmission')
   } else if (command.includes('CLEAR')) {
     terminalContent.value = []
   } else if (command.includes('SYS INFO')) {
@@ -441,21 +441,13 @@ const addCommandToTerminal = () => {
         typeText('Please use ISOLATE command first.')
       }
     }
-  } else if (command.startsWith('RESTORE ')) {
+  } else if (command.startsWith('RESTORE FRAGMENTS')) {
     if (!gridStore.remanenceDecrypted) {
       typeText('ERROR: Fragmented program data not found')
       typeText('Please decrypt the program first')
     } else {
-      const target = command.replace('RESTORE ', '').trim()
-      
-      if (target === 'REMANENCE' || target === 'REMANANCE') {
-        // Afficher la modal pour saisir le mot de passe
-        passwordError.value = ''
-        showPasswordModal.value = true
-      } else {
-        typeText('ERROR: Unknown program designation')
-        typeText('Please specify a valid program to restore')
-      }
+      passwordError.value = ''
+      showPasswordModal.value = true
     }
   } else if (command === 'STOP MORSE') {
     // Arrêter la transmission morse
@@ -497,8 +489,6 @@ const checkRestorePassword = () => {
             setTimeout(() => {
               typeText('>> REMANENCE STATUS: ACTIVE')
               typeText('>> "Je suis là. Je suis encore là."')
-              typeText('>> "Merci d\'avoir cru en moi."')
-              typeText('>> "Le chemin que tu cherches est dans les hauteurs."')
               typeText('Extraction possible')
               typeText('EXTRACT REMANANCE')
             }, 1000)
@@ -511,7 +501,7 @@ const checkRestorePassword = () => {
     // Mot de passe incorrect
     passwordAttempts.value++
     
-    if (passwordAttempts.value >= 3) {
+    if (passwordAttempts.value >= 5) {
       // Trop de tentatives échouées
       showPasswordModal.value = false
       passwordInput.value = ''
@@ -854,11 +844,13 @@ defineExpose({
   
   &.maximized {
     position: fixed !important;
-    top: 0 !important;
+    top: 36px !important;
     left: 0 !important;
     transform: none;
     border-radius: 0;
     z-index: 200;
+    width: 100vw !important;
+    height: 91vh !important;
   }
   
   &.surge-mode {

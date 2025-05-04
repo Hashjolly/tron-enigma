@@ -5,6 +5,7 @@ import TronTerminal from './components/TronTerminal.vue'
 import TaskBar from './components/TaskBar.vue'
 import TronAudioPlayer from './components/TronAudioPlayer.vue'
 import LogWindow from './components/LogWindow.vue'
+import MirrorGame from './components/MirrorGame.vue'
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useAudioStore } from './stores/audioStore'
 import { useGridStore } from './stores/gridStore'
@@ -29,11 +30,58 @@ const showAudioPrompt = ref(true)
 const terminalRef = ref(null)
 const logWindowRef = ref(null)
 
+// État pour la barre d'URL fictive
+const fakeUrl = ref('tron://os.encom/grid')
+const showMirrorGame = ref(false)
+const mirrorGameRef = ref(null)
+
 // Référence à l'élément audio morse
 const morseAudioRef = ref<HTMLAudioElement | null>(null)
 const morseVolume = ref(0.1) // Volume initial très bas
 const maxMorseVolume = 0.4 // Volume maximum réduit
 const volumeIncrementInterval = ref<number | null>(null)
+
+// Fonction pour vérifier si l'URL contient /NETMODE
+const checkNetMode = () => {
+  if (fakeUrl.value.endsWith('/netmode')) {
+    showMirrorGame.value = true;
+  } else {
+    showMirrorGame.value = false;
+  }
+}
+
+// Fonction pour gérer la saisie dans la barre d'URL
+const handleUrlInput = (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  fakeUrl.value = input.value;
+  checkNetMode();
+}
+
+// Fonction pour gérer la soumission de l'URL (quand on appuie sur Entrée)
+const handleUrlSubmit = (event: KeyboardEvent) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    // Vérifier si l'URL a changé
+    checkNetMode();
+    // Simuler un effet de chargement rapide
+    const urlInput = event.target as HTMLInputElement;
+    urlInput.disabled = true;
+    setTimeout(() => {
+      urlInput.disabled = false;
+      urlInput.focus();
+    }, 300);
+  }
+}
+
+// Fonction pour fermer la fenêtre MirrorGame
+const closeMirrorGame = () => {
+  showMirrorGame.value = false;
+  
+  // Mettre à jour l'URL fictive pour retirer /NETMODE
+  if (fakeUrl.value.endsWith('/NETMODE')) {
+    fakeUrl.value = fakeUrl.value.replace('/NETMODE', '');
+  }
+}
 
 // Fonction appelée quand la vidéo d'intro se termine
 const onIntroVideoEnded = () => {
@@ -222,6 +270,9 @@ onMounted(() => {
   nextTick(() => {
     initMorseAudio()
   })
+  
+  // Vérifier l'URL initiale
+  checkNetMode()
 })
 
 // Nettoyage des ressources lors de la destruction du composant
@@ -273,6 +324,23 @@ onBeforeUnmount(() => {
       'hidden': showIntroVideo || showGlitchTransition,
       'appear-animation': !showIntroVideo && !showGlitchTransition 
     }">
+      <!-- Barre d'URL fictive -->
+      <div class="fake-browser-bar">
+        <div class="url-container">
+          <input 
+            type="text" 
+            class="fake-url-input" 
+            v-model="fakeUrl" 
+            @input="handleUrlInput"
+            @keydown="handleUrlSubmit"
+            spellcheck="false"
+          />
+        </div>
+        <div class="browser-actions">
+          <span class="browser-refresh">↻</span>
+        </div>
+      </div>
+      
       <GridBackground />
       
       <!-- Audio en arrière-plan pour le morse -->
@@ -300,6 +368,11 @@ onBeforeUnmount(() => {
           ref="logWindowRef"
           v-if="showLogWindow" 
           @close="showLogWindow = false" 
+        />
+        <MirrorGame 
+          v-if="showMirrorGame" 
+          ref="mirrorGameRef"
+          @close="closeMirrorGame"
         />
         <TronAudioPlayer />
       </div>
@@ -500,6 +573,24 @@ html, body {
         text-shadow: 0 0 2px #ff8800 !important;
       }
     }
+    
+    .fake-browser-bar {
+      border-bottom-color: var(--surge-color);
+      box-shadow: 0 0 10px rgba(255, 136, 0, 0.3);
+    }
+    
+    .fake-url-input {
+      color: var(--surge-light);
+      border-color: var(--surge-dark);
+    }
+    
+    .browser-refresh {
+      color: var(--surge-light);
+      
+      &:hover {
+        text-shadow: 0 0 5px var(--surge-color);
+      }
+    }
   }
 }
 
@@ -532,6 +623,90 @@ html, body {
     opacity: 1;
     transform: scale(1);
     filter: brightness(1) saturate(1) contrast(1);
+  }
+}
+
+/* Style pour la barre de navigateur fictive */
+.fake-browser-bar {
+  height: 36px;
+  background-color: rgba(10, 20, 30, 0.9);
+  border-bottom: 1px solid var(--tron-blue);
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  position: relative;
+  z-index: 10;
+  box-shadow: 0 0 10px rgba(0, 204, 255, 0.3);
+}
+
+.browser-controls {
+  display: flex;
+  gap: 6px;
+  margin-right: 15px;
+}
+
+.browser-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  
+  &:nth-child(1) {
+    background-color: #ff5f57;
+  }
+  
+  &:nth-child(2) {
+    background-color: #ffbd2e;
+  }
+  
+  &:nth-child(3) {
+    background-color: #28ca41;
+  }
+}
+
+.url-container {
+  flex: 1;
+  height: 24px;
+  background-color: rgba(0, 10, 20, 0.6);
+  border-radius: 4px;
+  border: 1px solid var(--tron-blue-dark);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+.fake-url-input {
+  width: 100%;
+  height: 100%;
+  background-color: transparent;
+  border: none;
+  color: var(--tron-blue-light);
+  padding: 0 10px;
+  font-family: 'Consolas', monospace;
+  font-size: 14px;
+  outline: none;
+  
+  &:focus {
+    border-color: var(--tron-blue);
+    box-shadow: 0 0 5px var(--tron-blue);
+  }
+  
+  &:disabled {
+    opacity: 0.7;
+  }
+}
+
+.browser-actions {
+  display: flex;
+  margin-left: 15px;
+}
+
+.browser-refresh {
+  color: var(--tron-blue-light);
+  font-size: 18px;
+  cursor: pointer;
+  
+  &:hover {
+    text-shadow: 0 0 5px var(--tron-blue);
   }
 }
 

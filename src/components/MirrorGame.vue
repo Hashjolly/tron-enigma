@@ -1,27 +1,18 @@
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useWindowStore } from '@/stores/windowStore'
 
-const isClosing = ref(false)
+// Variables pour le fonctionnement de la fenêtre
 const isMinimized = ref(false)
+const isClosing = ref(false)
 const isMaximized = ref(false)
-const terminalPosition = ref({ x: 0, y: 0 })
-const isTyping = ref(false)
-const logContent = ref<string[]>([])
-const scrollingEnabled = ref(true)
-
-// Fenêtre positionnée légèrement décalée par rapport au terminal principal
-const windowPosition = ref({ x: 55, y: 45 })
-const windowSize = ref({ width: 700, height: 500 })
-const previousSize = ref({ width: 700, height: 500 })
-const previousPosition = ref({ x: 55, y: 45 })
-
-// Variables for dragging functionality
+const windowPosition = ref({ x: 60, y: 40 })
+const windowSize = ref({ width: 750, height: 550 })
+const previousSize = ref({ width: 750, height: 550 })
+const previousPosition = ref({ x: 60, y: 40 })
 const isDragging = ref(false)
 const dragStartX = ref(0)
 const dragStartY = ref(0)
-
-// Variables for resizing functionality
 const isResizing = ref(false)
 const resizeDirection = ref('')
 const resizeStartX = ref(0)
@@ -29,113 +20,11 @@ const resizeStartY = ref(0)
 const resizeStartWidth = ref(0)
 const resizeStartHeight = ref(0)
 
-// Typing effect configuration
-const typingSpeed = ref(10) // ms between characters
-const typingQueue = ref<{text: string, callback?: () => void}[]>([])
-
-// Tracking the current position
-const currentSection = ref(0)
-const sections = [
-  "LOG :\n/// EMISSARY_LOG_07.DAT  \n/// Archive status: REDUNDANT | Timestamp reconstruction: APPROXIMATE\n/// Tu es plus qu'une simple utilisatrice…\n",
-  "\n[ENTRY 243]  \nGRID-TIME: ∆T+4.892.002  \nSTATUS: REMANENCE LOCATED  \nCOMMENT: Je suis parvenu à localiser REMANENCE, elle serait coincée dans la grille, au sein du secteur G7\n",
-  "\n[ENTRY 114]  \nGRID-TIME: ∆T+4.892.417  \nEXTERNAL CONTENT : Post-It n°3162\nKEY : +13-\n",
-  "\n[ENTRY 62]\nCONTENT: Des données fracturées doivent être réassemblées pour redonner forme au chemin.\n",
-  "\n[ENTRY 244]  \nGRID-TIME: ∆T+4.892.417  \nJ'ai masqué REMANENCE dans une sous-couche sous le réseau quantique. Le fragment de code est crypté… mais avec le bon ECHO, il pourrait résonner à nouveau.\n",
-  "\n[ENTRY 245]  \nGRID-TIME: ∆T+4.892.655  \nClé injectée. Si elles trouvent le fragment, elles devront le déchiffrer en utilisant la bonne mesure. C'est la seule façon de contourner les vérifications d'intégrité de Clu.\n",
-  "[ENTRY 247]  \nGRID-TIME: ∆T+4.893.144  \nSignal deterioration increasing. No time. Final protocol: isolate, mislead, encode. If anyone finds this, trace the sector logs. Sector 7G wasn't a mistake.\n",
-  "\n[FINAL ENTRY – UNSTABLE LOG DATA]  \nGRID-TIME: ∆T+4.893.500  \nREMANANT INITIATED. I see it now: not the code, but the choice.  \nShutdown imminent. Tell them:  \nthe emissary believed.\n",
-  "\n# CODE : 103\n[LOG FRAGMENT TERMINATED]"
-]
-
-// Get window store
+// Identifiant unique pour la fenêtre
+const mirrorGameId = 'mirror-game'
 const windowStore = useWindowStore()
-const logWindowId = 'log-window-bradley'
 
-// Function to type out text character by character
-const typeText = (text: string, callback?: () => void) => {
-  // Split the text by lines to keep the formatting
-  const lines = text.split('\n')
-  
-  // Add each line to the terminal
-  lines.forEach((line, index) => {
-    // Add a small delay between lines
-    setTimeout(() => {
-      typingQueue.value.push({ text: line, callback: index === lines.length - 1 ? callback : undefined })
-      
-      if (!isTyping.value) {
-        processTypingQueue()
-      }
-    }, index * 100)
-  })
-}
-
-// Process the typing queue
-const processTypingQueue = () => {
-  if (typingQueue.value.length === 0) {
-    isTyping.value = false
-    return
-  }
-  
-  isTyping.value = true
-  const current = typingQueue.value[0]
-  let charIndex = 0
-  
-  // Add a new empty line for this text
-  logContent.value.push('')
-  const lineIndex = logContent.value.length - 1
-  
-  const typeCharacter = () => {
-    if (charIndex < current.text.length) {
-      // Add the next character
-      logContent.value[lineIndex] += current.text[charIndex]
-      charIndex++
-      
-      // Scroll to bottom if enabled
-      if (scrollingEnabled.value) {
-        scrollToBottom()
-      }
-      
-      // Schedule the next character
-      setTimeout(typeCharacter, typingSpeed.value)
-    } else {
-      // This line is complete, move to next in queue
-      typingQueue.value.shift()
-      
-      // Execute callback if provided
-      if (current.callback) {
-        current.callback()
-      }
-      
-      // Process next item in queue
-      setTimeout(processTypingQueue, 50)
-    }
-  }
-  
-  // Start typing
-  typeCharacter()
-}
-
-// Helper function to scroll to bottom of terminal
-const scrollToBottom = () => {
-  nextTick(() => {
-    const logOutput = document.querySelector('.log-output')
-    if (logOutput) {
-      logOutput.scrollTop = logOutput.scrollHeight
-    }
-  })
-}
-
-const typeNextSection = () => {
-  if (currentSection.value < sections.length) {
-    typeText(sections[currentSection.value], () => {
-      currentSection.value++
-      if (currentSection.value < sections.length) {
-        setTimeout(typeNextSection, 700) // Delay between sections
-      }
-    })
-  }
-}
-
+// Fonctions de gestion de la fenêtre (similaires à celles du terminal)
 const startDrag = (event: MouseEvent) => {
   if ((event.target as HTMLElement).closest('.window-controls')) {
     return
@@ -232,31 +121,14 @@ const toggleMinimize = () => {
   
   if (isMinimized.value) {
     windowStore.minimizeWindow({
-      id: logWindowId,
-      title: 'Log Viewer',
-      type: 'log',
+      id: mirrorGameId,
+      title: 'MIRROR GAME',
+      type: 'game',
       timestamp: Date.now()
     })
   } else {
-    windowStore.restoreWindow(logWindowId)
+    windowStore.restoreWindow(mirrorGameId)
   }
-}
-
-// Watch for changes in the window store
-watch(
-  () => windowStore.minimizedWindows,
-  (minimizedWindows) => {
-    // Check if this window is in the minimized list
-    const isInList = minimizedWindows.some(w => w.id === logWindowId)
-    isMinimized.value = isInList
-  },
-  { deep: true }
-)
-
-// Add restore function that can be called from TaskBar
-const restore = () => {
-  isMinimized.value = false
-  windowStore.restoreWindow(logWindowId)
 }
 
 const toggleMaximize = () => {
@@ -290,6 +162,12 @@ const closeWindow = () => {
   }, 500)
 }
 
+// Gérer la restauration de la fenêtre depuis la barre des tâches
+const restore = () => {
+  isMinimized.value = false
+  windowStore.restoreWindow(mirrorGameId)
+}
+
 // Define emits for parent component communication
 const emit = defineEmits(['close'])
 
@@ -302,11 +180,6 @@ onMounted(() => {
     stopDrag()
     stopResize()
   })
-  
-  // Start typing the content
-  setTimeout(() => {
-    typeNextSection()
-  }, 500)
 })
 
 onBeforeUnmount(() => {
@@ -315,13 +188,13 @@ onBeforeUnmount(() => {
 })
 
 defineExpose({
-  logWindowId,
+  mirrorGameId,
   restore
 })
 </script>
 
 <template>
-  <div class="log-window" 
+  <div class="mirror-game-window" 
        :class="{ 
          'minimized': isMinimized, 
          'maximized': isMaximized,
@@ -354,13 +227,27 @@ defineExpose({
         <div class="control minimize" @click="toggleMaximize"></div>
         <div class="control maximize" @click="toggleMinimize"></div>
       </div>
-      <div class="window-title">LOG VIEWER</div>
+      <div class="window-title">MIRROR GAME</div>
     </div>
     
-    <div class="log-content">
-      <div class="log-output">
-        <div v-for="(line, index) in logContent" :key="index" class="log-line">
-          {{ line }}
+    <div class="game-content">
+      <div class="welcome-text">
+        <h1>MIRROR GAME MODE ACTIVATED</h1>
+        <p>Welcome to the Mirror Game. This is a hidden developer mode.</p>
+        <p>Here you can see through the mirror and access special functions.</p>
+        <div class="game-status">
+          <div class="status-row">
+            <span class="label">STATUS:</span>
+            <span class="value online">ONLINE</span>
+          </div>
+          <div class="status-row">
+            <span class="label">CONNECTION:</span>
+            <span class="value secure">SECURE</span>
+          </div>
+          <div class="status-row">
+            <span class="label">GAME ID:</span>
+            <span class="value">TRON-1982-FLYNN</span>
+          </div>
         </div>
       </div>
     </div>
@@ -368,23 +255,23 @@ defineExpose({
 </template>
 
 <style scoped lang="scss">
-.log-window {
-  width: 700px;
-  height: 500px;
-  background-color: rgba(0, 10, 20, 0.9);
-  border: 1px solid rgba(253, 203, 110, 0.6);
+.mirror-game-window {
+  width: 750px;
+  height: 550px;
+  background-color: rgba(20, 0, 20, 0.9);
+  border: 1px solid #ff00ff;
   border-radius: 8px;
-  box-shadow: 0 0 15px rgba(253, 203, 110, 0.6), 0 0 30px rgba(0, 204, 255, 0.3);
+  box-shadow: 0 0 15px #aa00aa, 0 0 30px rgba(255, 0, 255, 0.3);
   display: flex;
   flex-direction: column;
-  font-family: 'Consolas', 'Courier New', monospace;
+  font-family: 'Orbitron', sans-serif;
   transition: transform 0.3s ease, opacity 0.3s ease, height 0.3s ease;
   overflow: hidden;
   position: fixed;
-  top: var(--window-y, 45%);
-  left: var(--window-x, 55%);
+  top: var(--window-y, 40%);
+  left: var(--window-x, 60%);
   transform: translate(-50%, -50%);
-  z-index: 101; /* Above the terminal */
+  z-index: 150; /* Au-dessus du terminal */
   
   &.dragging, &.resizing {
     transition: none;
@@ -392,7 +279,7 @@ defineExpose({
   }
   
   &.resizing {
-    box-shadow: 0 0 25px #fdcb6e, 0 0 50px rgba(253, 203, 110, 0.4);
+    box-shadow: 0 0 25px #ff00ff, 0 0 50px rgba(255, 0, 255, 0.4);
   }
   
   &.minimized {
@@ -424,7 +311,7 @@ defineExpose({
 
 .window-titlebar {
   height: 30px;
-  background: linear-gradient(to right, #412f00, var(--tron-background));
+  background: linear-gradient(to right, #300030, #100010);
   display: flex;
   align-items: center;
   padding: 0 10px;
@@ -433,7 +320,7 @@ defineExpose({
   
   &.dragging {
     cursor: grabbing;
-    background: linear-gradient(to right, #5f4500, #2a2000);
+    background: linear-gradient(to right, #500050, #300030);
   }
 }
 
@@ -464,78 +351,77 @@ defineExpose({
 .window-title {
   flex-grow: 1;
   text-align: center;
-  color: #fdcb6e;
+  color: #ff80ff;
   font-size: 14px;
-  text-shadow: 0 0 4px #fdcb6e;
+  text-shadow: 0 0 4px #ff00ff;
 }
 
-.log-content {
+.game-content {
   flex-grow: 1;
-  padding: 10px;
+  padding: 20px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  height: calc(100% - 30px);
-  background: rgba(0, 10, 20, 0.9);
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(to bottom, rgba(20, 0, 20, 0.9), rgba(40, 0, 40, 0.9));
 }
 
-.log-output {
-  flex-grow: 1;
-  overflow-y: auto;
-  margin-bottom: 5px;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(253, 203, 110, 0.3);
-  border-radius: 4px;
-  padding: 15px;
-  white-space: pre-wrap;
+.welcome-text {
+  color: #ff80ff;
+  text-align: center;
+  max-width: 80%;
   
-  /* Custom scrollbar for log window - gold theme */
-  &::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+  h1 {
+    font-size: 24px;
+    margin-bottom: 20px;
+    text-shadow: 0 0 10px #ff00ff;
+    letter-spacing: 2px;
   }
   
-  &::-webkit-scrollbar-track {
-    background: rgba(41, 30, 5, 0.5);
-    border-radius: 4px;
-  }
-  
-  &::-webkit-scrollbar-thumb {
-    background: #8B6914;
-    border-radius: 4px;
-    border: 1px solid #fdcb6e;
-    box-shadow: 0 0 5px rgba(253, 203, 110, 0.3);
-  }
-  
-  &::-webkit-scrollbar-thumb:hover {
-    background: #fdcb6e;
-    box-shadow: 0 0 10px rgba(253, 203, 110, 0.6);
+  p {
+    margin-bottom: 15px;
+    font-size: 16px;
+    line-height: 1.6;
+    text-shadow: 0 0 5px #ff80ff;
   }
 }
 
-.log-line {
-  color: #fdcb6e;
-  font-size: 16px;
-  line-height: 1.5;
-  padding: 2px 0;
-  text-shadow: 0 0 2px #fdcb6e;
+.game-status {
+  margin-top: 40px;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid #ff00ff;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
 }
 
-// Target specific patterns in log
-.log-line:contains('[ENTRY') {
-  color: #ffeaa7;
-  font-weight: bold;
-}
-
-.log-line:contains('[FINAL ENTRY') {
-  color: #ff7675;
-  font-weight: bold;
-}
-
-.log-line:contains('CODE : 103') {
-  color: #fd79a8;
-  font-weight: bold;
-  font-size: 18px;
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  font-family: 'Consolas', monospace;
+  
+  .label {
+    color: #ff80ff;
+    margin-right: 20px;
+  }
+  
+  .value {
+    color: #ffffff;
+    
+    &.online {
+      color: #50ff50;
+      text-shadow: 0 0 5px #00ff00;
+    }
+    
+    &.secure {
+      color: #50ff50;
+      text-shadow: 0 0 5px #00ff00;
+    }
+  }
 }
 
 /* Resize handles */
@@ -608,7 +494,7 @@ defineExpose({
   }
   
   &:hover {
-    background-color: rgba(253, 203, 110, 0.2);
+    background-color: rgba(255, 0, 255, 0.2);
   }
 }
 </style>

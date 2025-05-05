@@ -41,6 +41,13 @@ const morseVolume = ref(0.1) // Volume initial très bas
 const maxMorseVolume = 0.4 // Volume maximum réduit
 const volumeIncrementInterval = ref<number | null>(null)
 
+// État pour la gestion de l'audio pendant les vidéos
+const previousAudioState = ref({
+  musicWasPlaying: false,
+  morseWasPlaying: false,
+  morseVolume: 0.1 // Ajout pour stocker le volume précédent du morse
+})
+
 // Fonction pour vérifier si l'URL contient /NETMODE
 const checkNetMode = () => {
   if (fakeUrl.value.endsWith('/netmode')) {
@@ -110,6 +117,7 @@ const onIntroVideoEnded = () => {
           // Cacher le prompt audio puisqu'il n'est plus nécessaire
           showAudioPrompt.value = false
         }
+        showTerminal.value = true
       })
     }, 1200) // Durée de l'effet après que la vidéo a disparu
   }, 800) // Durée de l'effet pendant que la vidéo est encore visible
@@ -197,6 +205,55 @@ const stopMorseAudio = () => {
   }
 }
 
+// Nouvelles fonctions pour gérer l'audio pendant la lecture de vidéos
+const pauseAllAudio = () => {
+  // Sauvegarder l'état actuel de l'audio
+  previousAudioState.value.musicWasPlaying = audioStore.isPlaying
+  previousAudioState.value.morseWasPlaying = morseAudioRef.value && !morseAudioRef.value.paused
+  
+  // Sauvegarder le volume actuel du morse avant de le mettre en pause
+  if (morseAudioRef.value) {
+    previousAudioState.value.morseVolume = morseAudioRef.value.volume
+  }
+  
+  // Mettre en pause la musique d'ambiance
+  if (audioStore.isPlaying) {
+    audioStore.pause()
+  }
+  
+  // Mettre en pause le morse
+  if (morseAudioRef.value && !morseAudioRef.value.paused) {
+    morseAudioRef.value.pause()
+  }
+}
+
+const resumeAllAudio = () => {
+  // Reprendre la musique si elle était en cours
+  if (previousAudioState.value.musicWasPlaying) {
+    audioStore.play()
+  }
+  
+  // Reprendre le morse s'il était en cours avec son volume précédent
+  if (previousAudioState.value.morseWasPlaying && morseAudioRef.value) {
+    // Restaurer le volume du morse avant de relancer la lecture
+    morseAudioRef.value.volume = previousAudioState.value.morseVolume
+    morseVolume.value = previousAudioState.value.morseVolume // Synchroniser aussi la variable réactive
+    
+    morseAudioRef.value.play()
+      .catch(error => console.warn("Could not resume morse audio:", error))
+  }
+}
+
+// Gérer le démarrage d'une vidéo depuis le terminal
+const handleVideoStarted = () => {
+  pauseAllAudio()
+}
+
+// Gérer la fin d'une vidéo depuis le terminal
+const handleVideoEnded = () => {
+  resumeAllAudio()
+}
+
 // Mettre en place un bouton audio dans la TaskBar
 const toggleAudio = () => {
   audioStore.togglePlayer()
@@ -281,8 +338,8 @@ onBeforeUnmount(() => {
   
   // Nettoyer l'intervalle d'augmentation du volume
   if (volumeIncrementInterval.value) {
-    clearInterval(volumeIncrementInterval.value)
-    volumeIncrementInterval.value = null
+    clearInterval(volumeIncrementInterval.value);
+    volumeIncrementInterval.value = null;
   }
 })
 </script>
@@ -363,6 +420,8 @@ onBeforeUnmount(() => {
           v-if="showTerminal" 
           @close="showTerminal = false"
           @stopMorse="stopMorseAudio"
+          @videoStarted="handleVideoStarted"
+          @videoEnded="handleVideoEnded"
         />
         <LogWindow 
           ref="logWindowRef"
@@ -734,7 +793,7 @@ a {
 /* Compte à rebours global */
 .global-countdown-container {
   position: fixed;
-  top: 10px;
+  top: 45px;
   left: 0;
   right: 0;
   display: flex;

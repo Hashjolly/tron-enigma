@@ -7,18 +7,24 @@ export const useGridStore = defineStore('grid', () => {
   const remanenceFound = ref(false)
   const remanenceIsolated = ref(false)
   const remanenceDecrypted = ref(false)
+  const fragmentRestored = ref(false)
+  const remanenceExtracted = ref(false)
   const countdownStarted = ref(false)
-  const timeRemaining = ref(60 * 60) // 60 minutes en secondes
+  const timeRemaining = ref(4500) // 75 minutes = 4500 secondes
   const isSurging = ref(false)
   let countdownInterval: number | null = null
 
   // Getters
   const formattedTime = computed(() => {
     if (!countdownStarted.value) return '';
+
+    const totalSeconds = timeRemaining.value;
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
     
-    const minutes = Math.floor(timeRemaining.value / 60);
-    const seconds = timeRemaining.value % 60;
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    // Format: H:MM:SS
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   })
 
   // Actions
@@ -43,6 +49,7 @@ export const useGridStore = defineStore('grid', () => {
     if (countdownStarted.value) return;
     
     countdownStarted.value = true;
+    timeRemaining.value = 4500; // 1h15 = 75min = 4500sec
     gridAccessed.value = true;
     
     if (terminalContentCallback) {
@@ -100,6 +107,8 @@ export const useGridStore = defineStore('grid', () => {
     remanenceFound,
     remanenceIsolated,
     remanenceDecrypted,
+    fragmentRestored,
+    remanenceExtracted,
     countdownStarted,
     timeRemaining,
     isSurging,

@@ -6,10 +6,10 @@ import { useWindowStore } from '@/stores/windowStore'
 const isMinimized = ref(false)
 const isClosing = ref(false)
 const isMaximized = ref(false)
-const windowPosition = ref({ x: 60, y: 40 })
-const windowSize = ref({ width: 750, height: 550 })
+const windowPosition = ref({ x: 60, y: 50 })
+const windowSize = ref({ width: 850, height: 750 })
 const previousSize = ref({ width: 750, height: 550 })
-const previousPosition = ref({ x: 60, y: 40 })
+const previousPosition = ref({ x: 60, y: 50 })
 const isDragging = ref(false)
 const dragStartX = ref(0)
 const dragStartY = ref(0)
@@ -21,20 +21,17 @@ const resizeStartWidth = ref(0)
 const resizeStartHeight = ref(0)
 
 // État pour le jeu de puzzle
-const gridSize = 3; // Grille 3x3
+const gridSize = 4; // Grille 4x4
 const totalTiles = gridSize * gridSize;
-const tiles = ref<number[]>([]); // Positions actuelles des tuiles (1-9)
-const solvedState = [...Array(totalTiles)].map((_, i) => i + 1); // État résolu [1,2,3,4,5,6,7,8,9]
+const tiles = ref<number[]>([]); // Positions actuelles des tuiles (1-16)
+const solvedState = [...Array(totalTiles)].map((_, i) => i + 1); // État résolu [1,2,3,...,16]
 const solved = ref(false); // Si le puzzle est résolu
-const moves = ref(0); // Compteur de mouvements
 const selectedTileIndex = ref<number | null>(null); // Index de la tuile actuellement sélectionnée
 const isGameInitialized = ref(false); // Si le jeu a été initialisé
 const congratsVisible = ref(false); // Affichage des félicitations quand résolu
-const patternSwapsActive = ref(false); // Si les échanges en pattern sont en cours
+const showFinalMessage = ref(false); // Affichage du message final
 const animatingTiles = ref<number[]>([]); // Tuiles en cours d'animation
-const difficulty = ref(1); // Niveau de difficulté (1-3)
-const patternDescription = ref(''); // Description du pattern utilisé pour le mouvement
-const showPatternHint = ref(false); // Afficher l'indication du pattern
+const animationDirection = ref<string>(''); // Direction de l'animation actuelle
 
 // Identifiant unique pour la fenêtre
 const mirrorGameId = 'mirror-game'
@@ -42,7 +39,7 @@ const windowStore = useWindowStore()
 
 // Sélectionner une tuile
 const selectTile = (tileIndex: number) => {
-  if (solved.value || patternSwapsActive.value) return;
+  if (solved.value) return;
   
   // Si aucune tuile n'est sélectionnée, la sélectionner
   if (selectedTileIndex.value === null) {
@@ -65,9 +62,6 @@ const switchTiles = (index1: number, index2: number) => {
   // Marquer les tuiles comme en animation
   animatingTiles.value = [index1, index2];
   
-  // Réinitialiser le texte d'indication du pattern
-  patternDescription.value = '';
-  
   // Attendre un court instant pour que l'animation soit visible
   setTimeout(() => {
     // Effectuer l'échange
@@ -77,9 +71,6 @@ const switchTiles = (index1: number, index2: number) => {
     newTiles[index2] = temp;
     tiles.value = newTiles;
     
-    // Incrémenter le compteur de mouvements
-    moves.value++;
-    
     // Réinitialiser la sélection
     selectedTileIndex.value = null;
     
@@ -88,152 +79,7 @@ const switchTiles = (index1: number, index2: number) => {
     
     // Vérifier si le puzzle est résolu
     checkSolution();
-    
-    // Si le puzzle n'est pas résolu, effectuer des échanges selon un pattern
-    if (!solved.value) {
-      performPatternSwaps();
-    }
   }, 250);
-}
-
-// Calculer l'indice de la position du miroir
-const getMirrorIndex = (index: number): number => {
-  // Dans une grille 3x3, le miroir par rapport au centre est:
-  // 0 1 2     8 7 6
-  // 3 4 5  → 5 4 3
-  // 6 7 8     2 1 0
-  return totalTiles - 1 - index;
-}
-
-// Effectuer des échanges selon un pattern
-const performPatternSwaps = () => {
-  patternSwapsActive.value = true;
-  
-  // Définir le pattern en fonction du niveau de difficulté
-  let patternType: number;
-  
-  // Au lieu de mouvements vraiment aléatoires, nous utilisons un pattern prédictible
-  // mais qui donne l'impression de complexité
-  if (difficulty.value === 1) {
-    patternType = 1; // Pattern simple: symétrie miroir centrale
-  } else if (difficulty.value === 2) {
-    patternType = 2; // Pattern médium: rotation de coins
-  } else {
-    patternType = 3; // Pattern difficile: combinaison de patterns
-  }
-  
-  // Retard avant d'appliquer le pattern pour permettre à l'utilisateur de voir son mouvement
-  setTimeout(() => {
-    const newTiles = [...tiles.value];
-    
-    if (patternType === 1) {
-      // Pattern 1: Symétrie miroir centrale - échanger deux tuiles symétriques par rapport au centre
-      const index1 = 0; // Coin supérieur gauche
-      const index2 = getMirrorIndex(index1); // Coin inférieur droit
-      
-      // Animer ces tuiles
-      animatingTiles.value = [index1, index2];
-      patternDescription.value = "Symétrie centrale";
-      
-      // Effectuer l'échange
-      setTimeout(() => {
-        const temp = newTiles[index1];
-        newTiles[index1] = newTiles[index2];
-        newTiles[index2] = temp;
-        
-        tiles.value = newTiles;
-        animatingTiles.value = [];
-        showPatternHint.value = true;
-        
-        // Cacher l'indication après quelques secondes
-        setTimeout(() => {
-          showPatternHint.value = false;
-        }, 3000);
-        
-        patternSwapsActive.value = false;
-        
-        // Vérifier si le puzzle est résolu (rare, mais possible)
-        checkSolution();
-      }, 600);
-      
-    } else if (patternType === 2) {
-      // Pattern 2: Rotation des coins dans le sens des aiguilles d'une montre
-      const corners = [0, 2, 8, 6]; // Indices des coins (haut-gauche, haut-droit, bas-droit, bas-gauche)
-      animatingTiles.value = [...corners];
-      patternDescription.value = "Rotation des coins";
-      
-      setTimeout(() => {
-        // Sauvegarder la valeur du premier coin
-        const temp = newTiles[corners[0]];
-        
-        // Déplacer chaque coin à la position suivante (rotation horaire)
-        for (let i = 0; i < corners.length - 1; i++) {
-          newTiles[corners[i]] = newTiles[corners[i+1]];
-        }
-        
-        // Placer la première valeur à la dernière position
-        newTiles[corners[corners.length - 1]] = temp;
-        
-        tiles.value = newTiles;
-        animatingTiles.value = [];
-        showPatternHint.value = true;
-        
-        // Cacher l'indication après quelques secondes
-        setTimeout(() => {
-          showPatternHint.value = false;
-        }, 3000);
-        
-        patternSwapsActive.value = false;
-        
-        // Vérifier si le puzzle est résolu
-        checkSolution();
-      }, 600);
-      
-    } else {
-      // Pattern 3: Combinaison de patterns - symétrie des coins + échange du centre avec un bord
-      // 1. D'abord, symétrie des coins opposés (0 ↔ 8 et 2 ↔ 6)
-      const cornerPairs = [[0, 8], [2, 6]];
-      animatingTiles.value = cornerPairs.flat();
-      patternDescription.value = "Symétrie des coins + Échange central";
-      
-      setTimeout(() => {
-        // Échanger les coins diagonalement opposés
-        for (const [a, b] of cornerPairs) {
-          const temp = newTiles[a];
-          newTiles[a] = newTiles[b];
-          newTiles[b] = temp;
-        }
-        
-        // 2. Ensuite, échanger le centre avec un côté
-        const center = 4;
-        const sides = [1, 3, 5, 7]; // Haut, gauche, droite, bas
-        const randomSide = sides[moves.value % sides.length]; // Prédictible mais semble aléatoire
-        
-        animatingTiles.value = [center, randomSide];
-        
-        setTimeout(() => {
-          // Échanger le centre avec le côté choisi
-          const temp = newTiles[center];
-          newTiles[center] = newTiles[randomSide];
-          newTiles[randomSide] = temp;
-          
-          tiles.value = newTiles;
-          animatingTiles.value = [];
-          showPatternHint.value = true;
-          
-          // Cacher l'indication après quelques secondes
-          setTimeout(() => {
-            showPatternHint.value = false;
-          }, 3000);
-          
-          patternSwapsActive.value = false;
-          
-          // Vérifier si le puzzle est résolu
-          checkSolution();
-        }, 600);
-      }, 600);
-    }
-  }, 300);
 }
 
 // Vérifier si le puzzle est résolu
@@ -248,10 +94,15 @@ const checkSolution = () => {
     solved.value = true;
     congratsVisible.value = true;
     
-    // Cacher le message après quelques secondes
+    // Cacher le message après quelques secondes et afficher le message final
     setTimeout(() => {
       congratsVisible.value = false;
-    }, 5000);
+      
+      // Attendre un court instant avant de montrer le message final
+      setTimeout(() => {
+        showFinalMessage.value = true;
+      }, 10);
+    }, 2000);
   }
 }
 
@@ -261,7 +112,7 @@ const shuffleTiles = () => {
   const newTiles = [...solvedState];
   
   // Effectuer une série d'échanges aléatoires pour mélanger
-  const swapCount = 20 + difficulty.value * 10; // Plus de difficulté = plus de mélanges
+  const swapCount = 30; // Nombre fixe d'échanges
   
   for (let i = 0; i < swapCount; i++) {
     const index1 = Math.floor(Math.random() * totalTiles);
@@ -284,23 +135,43 @@ const shuffleTiles = () => {
   
   // Mettre à jour l'état du jeu
   tiles.value = newTiles;
-  moves.value = 0;
   solved.value = false;
   selectedTileIndex.value = null;
   animatingTiles.value = [];
+  animationDirection.value = '';
   isGameInitialized.value = true;
 }
 
 // Fonction pour calculer la position de l'image de fond pour une tuile donnée
 const getTileStyle = (index: number, tile: number) => {
   // Pour toutes les tuiles, on calcule la position de l'image de fond
-  const tileNumber = tile - 1; // Convertir 1-9 en 0-8
+  const tileNumber = tile - 1; // Convertir 1-16 en 0-15
   const tileX = (tileNumber % gridSize) / (gridSize - 1) * 100;
   const tileY = Math.floor(tileNumber / gridSize) / (gridSize - 1) * 100;
   
   // Déterminer si la tuile est sélectionnée ou en cours d'animation
   const isSelected = selectedTileIndex.value === index;
   const isAnimating = animatingTiles.value.includes(index);
+  
+  // Calculer les transformations d'animation
+  let transform = isSelected ? 'scale(0.95)' : 'scale(1)';
+  let transition = 'all 0.3s ease-in-out';
+  
+  if (isAnimating) {
+    // Ajouter l'animation de glissement basée sur la direction
+    const row = Math.floor(index / gridSize);
+    const col = index % gridSize;
+    
+    if (animationDirection.value === 'left') {
+      transform = `translateX(-20px) scale(0.95)`;
+    } else if (animationDirection.value === 'right') {
+      transform = `translateX(20px) scale(0.95)`;
+    } else if (animationDirection.value === 'up') {
+      transform = `translateY(-20px) scale(0.95)`;
+    } else if (animationDirection.value === 'down') {
+      transform = `translateY(20px) scale(0.95)`;
+    }
+  }
   
   return {
     backgroundImage: 'url(/images/silver_apple.png)',
@@ -311,25 +182,116 @@ const getTileStyle = (index: number, tile: number) => {
       : isAnimating 
         ? '0 0 15px #ffff00, 0 0 10px #ffff00 inset' 
         : '',
-    transition: 'all 0.2s ease-in-out',
-    transform: isAnimating ? 'scale(0.9)' : isSelected ? 'scale(0.95)' : 'scale(1)',
-    opacity: patternSwapsActive.value && !isAnimating ? '0.7' : '1'
+    transition: transition,
+    transform: transform,
+    opacity: '1'
   };
+}
+
+// Fonctions pour déplacer une ligne ou une colonne
+const shiftRow = (rowIndex: number, direction: 'left' | 'right') => {
+  if (solved.value) return;
+  
+  // Définir la direction d'animation
+  animationDirection.value = direction;
+  
+  // Créer une copie du tableau de tuiles
+  const newTiles = [...tiles.value];
+  const startIdx = rowIndex * gridSize;
+  const endIdx = startIdx + gridSize;
+  const rowTiles = newTiles.slice(startIdx, endIdx);
+  
+  // Animer toutes les tuiles de la ligne
+  animatingTiles.value = Array.from({ length: gridSize }, (_, i) => startIdx + i);
+  
+  // Attendre un court instant pour que l'animation soit visible
+  setTimeout(() => {
+    if (direction === 'left') {
+      // Déplacer vers la gauche (le premier élément va à la fin)
+      const firstTile = rowTiles[0];
+      for (let i = 0; i < gridSize - 1; i++) {
+        rowTiles[i] = rowTiles[i + 1];
+      }
+      rowTiles[gridSize - 1] = firstTile;
+    } else {
+      // Déplacer vers la droite (le dernier élément va au début)
+      const lastTile = rowTiles[gridSize - 1];
+      for (let i = gridSize - 1; i > 0; i--) {
+        rowTiles[i] = rowTiles[i - 1];
+      }
+      rowTiles[0] = lastTile;
+    }
+    
+    // Mettre à jour la ligne dans le tableau de tuiles
+    for (let i = 0; i < gridSize; i++) {
+      newTiles[startIdx + i] = rowTiles[i];
+    }
+    
+    tiles.value = newTiles;
+    animatingTiles.value = [];
+    animationDirection.value = '';
+    
+    // Vérifier si le puzzle est résolu
+    checkSolution();
+  }, 300);
+}
+
+const shiftColumn = (colIndex: number, direction: 'up' | 'down') => {
+  if (solved.value) return;
+  
+  // Définir la direction d'animation
+  animationDirection.value = direction;
+  
+  // Créer une copie du tableau de tuiles
+  const newTiles = [...tiles.value];
+  
+  // Extraire les tuiles de la colonne
+  const colTiles = [];
+  for (let i = 0; i < gridSize; i++) {
+    colTiles.push(newTiles[i * gridSize + colIndex]);
+  }
+  
+  // Animer toutes les tuiles de la colonne
+  animatingTiles.value = Array.from({ length: gridSize }, (_, i) => i * gridSize + colIndex);
+  
+  // Attendre un court instant pour que l'animation soit visible
+  setTimeout(() => {
+    if (direction === 'up') {
+      // Déplacer vers le haut (le premier élément va à la fin)
+      const firstTile = colTiles[0];
+      for (let i = 0; i < gridSize - 1; i++) {
+        colTiles[i] = colTiles[i + 1];
+      }
+      colTiles[gridSize - 1] = firstTile;
+    } else {
+      // Déplacer vers le bas (le dernier élément va au début)
+      const lastTile = colTiles[gridSize - 1];
+      for (let i = gridSize - 1; i > 0; i--) {
+        colTiles[i] = colTiles[i - 1];
+      }
+      colTiles[0] = lastTile;
+    }
+    
+    // Mettre à jour la colonne dans le tableau de tuiles
+    for (let i = 0; i < gridSize; i++) {
+      newTiles[i * gridSize + colIndex] = colTiles[i];
+    }
+    
+    tiles.value = newTiles;
+    animatingTiles.value = [];
+    animationDirection.value = '';
+    
+    // Vérifier si le puzzle est résolu
+    checkSolution();
+  }, 300);
 }
 
 // Réinitialiser le jeu
 const resetGame = () => {
   shuffleTiles();
-  moves.value = 0;
   solved.value = false;
   selectedTileIndex.value = null;
   animatingTiles.value = [];
-}
-
-// Changer le niveau de difficulté
-const changeDifficulty = (level: number) => {
-  difficulty.value = level;
-  resetGame();
 }
 
 // Fonctions pour gérer la fenêtre
@@ -538,85 +500,108 @@ defineExpose({
     </div>
     
     <div class="game-content">
-      <div class="game-header">
-        <h2>Mirror Puzzle</h2>
-        <div class="game-stats">
-          <div class="difficulty-selector">
-            <span class="diff-label">Level:</span>
-            <div class="diff-buttons">
-              <button 
-                class="diff-button" 
-                :class="{ 'active': difficulty === 1 }" 
-                @click="changeDifficulty(1)"
-              >1</button>
-              <button 
-                class="diff-button" 
-                :class="{ 'active': difficulty === 2 }" 
-                @click="changeDifficulty(2)"
-              >2</button>
-              <button 
-                class="diff-button" 
-                :class="{ 'active': difficulty === 3 }" 
-                @click="changeDifficulty(3)"
-              >3</button>
+      <!-- Message final qui remplace tout le contenu quand le puzzle est résolu -->
+      <div v-if="showFinalMessage" class="final-message">
+        <p>La vérité se cache là ou les reflets mentent...</p>
+      </div>
+      
+      <!-- Contenu normal du jeu -->
+      <template v-else>
+        <div class="game-header">
+          <h2>Mirror Puzzle</h2>
+          <div class="game-stats">
+            <button class="reset-button" @click="resetGame">Reset</button>
+          </div>
+        </div>
+        
+        <div class="puzzle-container">
+          <!-- Grille de puzzle avec flèches directionnelles -->
+          <div class="puzzle-grid-wrapper">
+            <!-- Flèches du haut pour les colonnes -->
+            <div class="column-arrows top-arrows">
+              <div v-for="col in gridSize" :key="`top-${col}`" class="arrow-btn-container">
+                <button 
+                  class="arrow-btn arrow-up" 
+                  @click="shiftColumn(col-1, 'up')"
+                  :disabled="solved"
+                >
+                  ▲
+                </button>
+              </div>
+            </div>
+            
+            <div class="grid-with-row-arrows">
+              <!-- Flèches gauche pour les lignes -->
+              <div class="row-arrows left-arrows">
+                <div v-for="row in gridSize" :key="`left-${row}`" class="arrow-btn-container">
+                  <button 
+                    class="arrow-btn arrow-left" 
+                    @click="shiftRow(row-1, 'left')"
+                    :disabled="solved"
+                  >
+                    ◄
+                  </button>
+                </div>
+              </div>
+              
+              <!-- La grille de puzzle -->
+              <div class="puzzle-grid" :style="`grid-template-columns: repeat(${gridSize}, 1fr)`">
+                <div 
+                  v-for="(tile, index) in tiles" 
+                  :key="index"
+                  class="puzzle-tile"
+                  :class="{ 
+                    'selected': selectedTileIndex === index,
+                    'animating': animatingTiles.includes(index),
+                    'solved': solved
+                  }"
+                  @click="selectTile(index)"
+                  :style="getTileStyle(index, tile)"
+                >
+                </div>
+              </div>
+              
+              <!-- Flèches droite pour les lignes -->
+              <div class="row-arrows right-arrows">
+                <div v-for="row in gridSize" :key="`right-${row}`" class="arrow-btn-container">
+                  <button 
+                    class="arrow-btn arrow-right" 
+                    @click="shiftRow(row-1, 'right')"
+                    :disabled="solved"
+                  >
+                    ►
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Flèches du bas pour les colonnes -->
+            <div class="column-arrows bottom-arrows">
+              <div v-for="col in gridSize" :key="`bottom-${col}`" class="arrow-btn-container">
+                <button 
+                  class="arrow-btn arrow-down" 
+                  @click="shiftColumn(col-1, 'down')"
+                  :disabled="solved"
+                >
+                  ▼
+                </button>
+              </div>
             </div>
           </div>
-          <div class="moves">Moves: {{ moves }}</div>
-          <button class="reset-button" @click="resetGame">Reset</button>
-        </div>
-      </div>
-      
-      <div class="puzzle-container">
-        <div class="puzzle-grid" :style="`grid-template-columns: repeat(${gridSize}, 1fr)`">
-          <div 
-            v-for="(tile, index) in tiles" 
-            :key="index"
-            class="puzzle-tile"
-            :class="{ 
-              'selected': selectedTileIndex === index,
-              'animating': animatingTiles.includes(index),
-              'solved': solved
-            }"
-            @click="selectTile(index)"
-            :style="getTileStyle(index, tile)"
-          >
-            <div class="tile-position" v-if="difficulty === 3">{{ index }}</div>
+          
+          <div v-if="congratsVisible" class="congrats-message">
+            <div class="congrats-content">
+              <h3>Puzzle Solved!</h3>
+              <p>Congratulations!</p>
+            </div>
           </div>
         </div>
         
-        <div v-if="patternSwapsActive" class="pattern-indicator">
-          {{ patternDescription }}
+        <div class="game-instructions">
+          <p>Reconstituez l'image en déplaçant les lignes et colonnes</p>
+          <p class="hint">Cliquez sur les flèches pour déplacer les rangées ou sélectionnez deux tuiles pour les échanger</p>
         </div>
-        
-        <div v-if="showPatternHint" class="pattern-hint">
-          <div class="hint-content">
-            <h4>Pattern utilisé</h4>
-            <p>{{ patternDescription }}</p>
-            <p class="hint-tip" v-if="difficulty === 1">
-              Les tuiles aux coins opposés s'échangent.
-            </p>
-            <p class="hint-tip" v-if="difficulty === 2">
-              Les tuiles aux quatre coins tournent dans le sens horaire.
-            </p>
-            <p class="hint-tip" v-if="difficulty === 3">
-              Les coins opposés s'échangent, puis le centre échange avec un bord.
-            </p>
-          </div>
-        </div>
-        
-        <div v-if="congratsVisible" class="congrats-message">
-          <div class="congrats-content">
-            <h3>Puzzle Solved!</h3>
-            <p>You completed it in {{ moves }} moves</p>
-            <p>Level: {{ difficulty }}</p>
-          </div>
-        </div>
-      </div>
-      
-      <div class="game-instructions">
-        <p>Reconstituez l'image en échangeant les morceaux.</p>
-        <p class="hint">Sélectionnez deux tuiles pour les échanger. Attention: un pattern d'échanges suivra!</p>
-      </div>
+      </template>
     </div>
   </div>
 </template>
@@ -698,6 +683,38 @@ defineExpose({
   position: relative;
 }
 
+/* Message final qui s'affiche une fois le puzzle résolu */
+.final-message {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  text-align: center;
+  animation: fade-in 1s ease-in-out;
+  
+  p {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 28px;
+    color: #ff00ff;
+    text-shadow: 0 0 15px #ff00ff, 0 0 10px #ff80ff;
+    font-weight: bold;
+    line-height: 1.5;
+    max-width: 80%;
+    letter-spacing: 1px;
+    animation: pulse-text 2s infinite alternate;
+  }
+}
+
+@keyframes pulse-text {
+  0% { text-shadow: 0 0 10px #ff00ff, 0 0 5px #ff80ff; opacity: 0.8; }
+  100% { text-shadow: 0 0 20px #ff00ff, 0 0 15px #ff80ff; opacity: 1; }
+}
+
 .game-header {
   display: flex;
   justify-content: space-between;
@@ -715,11 +732,6 @@ defineExpose({
     display: flex;
     gap: 15px;
     align-items: center;
-    
-    .moves {
-      color: #ff80ff;
-      font-size: 16px;
-    }
     
     .reset-button {
       background: rgba(40, 0, 40, 0.7);
@@ -739,43 +751,6 @@ defineExpose({
   }
 }
 
-.difficulty-selector {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  
-  .diff-label {
-    color: #ff80ff;
-    font-size: 14px;
-  }
-  
-  .diff-buttons {
-    display: flex;
-    gap: 3px;
-  }
-  
-  .diff-button {
-    background: rgba(30, 0, 30, 0.7);
-    color: #ff80ff;
-    border: 1px solid #ff00ff;
-    border-radius: 3px;
-    width: 24px;
-    height: 24px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.2s;
-    
-    &:hover {
-      background: rgba(50, 0, 50, 0.9);
-    }
-    
-    &.active {
-      background: rgba(80, 0, 80, 0.9);
-      box-shadow: 0 0 10px #ff00ff;
-    }
-  }
-}
-
 .puzzle-container {
   flex: 1;
   display: flex;
@@ -785,11 +760,73 @@ defineExpose({
   padding: 10px;
 }
 
+.puzzle-grid-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.grid-with-row-arrows {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.column-arrows {
+  display: flex;
+  justify-content: space-around;
+  width: 450px;
+  height: 28px;
+}
+
+.row-arrows {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  height: 450px;
+  width: 28px;
+}
+
+.arrow-btn-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.arrow-btn {
+  width: 28px;
+  height: 28px;
+  background: rgba(40, 0, 40, 0.7);
+  color: #ff80ff;
+  border: 1px solid #ff00ff;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  
+  &:hover:not(:disabled) {
+    background: rgba(60, 0, 60, 0.9);
+    box-shadow: 0 0 10px #ff00ff;
+    color: #ffffff;
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
 .puzzle-grid {
   display: grid;
   gap: 4px;
-  width: 300px;
-  height: 300px;
+  width: 450px;
+  height: 450px;
   border: 2px solid #ff00ff;
   padding: 4px;
   background: rgba(10, 0, 10, 0.8);
@@ -803,36 +840,9 @@ defineExpose({
     background-color: rgba(40, 0, 40, 0.6);
     border-radius: 3px;
     cursor: pointer;
-    transition: all 0.2s ease-in-out;
-    
-    .tile-position {
-      position: absolute;
-      top: 5px;
-      left: 5px;
-      font-size: 10px;
-      color: rgba(255, 255, 255, 0.7);
-      background: rgba(0, 0, 0, 0.5);
-      border-radius: 50%;
-      width: 14px;
-      height: 14px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    
-    &:hover {
-      box-shadow: 0 0 8px #ff00ff;
-    }
-    
-    &.selected {
-      transform: scale(0.95);
-      box-shadow: 0 0 20px #ff00ff, 0 0 15px #ff00ff inset;
-      z-index: 10;
-    }
+    transition: all 0.3s ease-in-out;
     
     &.animating {
-      transform: scale(0.9);
-      box-shadow: 0 0 15px #ffff00, 0 0 10px #ffff00 inset;
       z-index: 10;
     }
     
@@ -845,61 +855,6 @@ defineExpose({
 @keyframes pulse-solved {
   0% { box-shadow: 0 0 5px rgba(255, 0, 255, 0.4); }
   100% { box-shadow: 0 0 12px rgba(255, 0, 255, 0.8); }
-}
-
-.pattern-indicator {
-  position: absolute;
-  top: -30px;
-  left: 0;
-  right: 0;
-  text-align: center;
-  color: #ffff00;
-  font-size: 18px;
-  font-weight: bold;
-  text-shadow: 0 0 10px #ff8800;
-  animation: flash 1s infinite alternate;
-}
-
-.pattern-hint {
-  position: absolute;
-  bottom: -120px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 280px;
-  background: rgba(40, 0, 40, 0.9);
-  border: 1px solid #ff00ff;
-  border-radius: 8px;
-  padding: 10px 15px;
-  animation: fade-in 0.5s forwards;
-  box-shadow: 0 0 15px rgba(255, 0, 255, 0.4);
-  
-  .hint-content {
-    text-align: center;
-    
-    h4 {
-      color: #ff80ff;
-      margin: 0 0 8px 0;
-      font-size: 16px;
-      text-shadow: 0 0 5px #ff00ff;
-    }
-    
-    p {
-      color: #ff80ff;
-      margin: 5px 0;
-      font-size: 13px;
-    }
-    
-    .hint-tip {
-      color: #ffff00;
-      font-style: italic;
-      font-size: 12px;
-    }
-  }
-}
-
-@keyframes flash {
-  0% { opacity: 0.5; }
-  100% { opacity: 1; }
 }
 
 .game-instructions {

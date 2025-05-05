@@ -46,16 +46,22 @@ const resizeStartY = ref(0)
 const resizeStartWidth = ref(0)
 const resizeStartHeight = ref(0)
 
-// Variables for RESTORE functionality
+// Variables for RESTORE and VALIDATE functionality
 const showPasswordModal = ref(false)
 const passwordInput = ref('')
 const passwordAttempts = ref(0)
 const passwordError = ref('')
+const passwordMode = ref('') // 'restore' ou 'validate'
 
 // Variables for secret file functionality
 const showSecretFilePrompt = ref(false)
+const showExtractPrompt = ref(false)
 const showVideo = ref(false)
 const videoPath = ref('')
+const videoType = ref('') // Pour distinguer les différentes vidéos
+
+// Variables for final choice
+const showFinalChoiceModal = ref(false)
 
 const startDrag = (event: MouseEvent) => {
   if ((event.target as HTMLElement).closest('.terminal-controls')) {
@@ -222,7 +228,7 @@ const scrollToBottom = () => {
 }
 
 // Define emits for parent component communication
-const emit = defineEmits(['close', 'stopMorse'])
+const emit = defineEmits(['close', 'stopMorse', 'videoStarted', 'videoEnded'])
 
 const addCommandToTerminal = () => {
   if (!commandInput.value.trim()) return
@@ -254,7 +260,13 @@ const addCommandToTerminal = () => {
     if (gridStore.remanenceDecrypted) {
       typeText('- RESTORE <PROGRAM>: Restore fragmented program data')
     }
-    // typeText('- STOP MORSE: Disable morse code transmission')
+    if (gridStore.fragmentRestored) {
+      typeText('- STOP MORSE: Disable morse code transmission')
+      typeText('- EXTRACT <PROGRAM>: Extract the program of your choice')
+    }
+    if (gridStore.remanenceExtracted) {
+      typeText('- VALIDATE REMANENCE: Validate the program of your choice')
+    }
   } else if (command.includes('CLEAR')) {
     terminalContent.value = []
   } else if (command.includes('SYS INFO')) {
@@ -425,6 +437,7 @@ const addCommandToTerminal = () => {
                     
                     // Ajout du prompt pour le dossier secret après un court délai
                     setTimeout(() => {
+                      videoType.value = 'decrypt'
                       showSecretFilePrompt.value = true
                     }, 4000)
                   }, 1000)
@@ -446,6 +459,7 @@ const addCommandToTerminal = () => {
       typeText('ERROR: Fragmented program data not found')
       typeText('Please decrypt the program first')
     } else {
+      passwordMode.value = 'restore'
       passwordError.value = ''
       showPasswordModal.value = true
     }
@@ -454,6 +468,62 @@ const addCommandToTerminal = () => {
     emit('stopMorse')
     typeText('Morse code transmission stopped.')
     typeText('Signal terminated. Channel closed.')
+  } else if (command.startsWith('EXTRACT ')) {
+    const target = command.replace('EXTRACT ', '').trim()
+    
+    if (target === 'REMANENCE' || target === 'REMANANCE') {
+      gridStore.remanenceExtracted= true
+
+      let loadingDots = 0
+      terminalContent.value.push('Extracting ' + target + ' from sector 7G...')
+      const loadingInterval = setInterval(() => {
+        loadingDots = (loadingDots + 1) % 3
+        terminalContent.value[terminalContent.value.length - 1] = 
+          'Extracting ' + target + ' from sector 7G' + '.' + '.'.repeat(loadingDots)
+      }, 500)
+
+        setTimeout(() => {
+          clearInterval(loadingInterval)
+          setTimeout(() => {
+            typeText('Extract complete.')
+            setTimeout(() => {
+              typeText('Data node secured.')
+                setTimeout(() => {
+                    typeText('>> Message from REMANENCE: <<')
+                    typeText('>>"Je me souviens... d’un chant humain. Ce n’était pas logique. C’était... beau."<<')
+                    typeText('_Proceed to final validation: VALIDATE REMANANCE')
+                    
+                    // Ajout du prompt pour visualiser la vidéo d'extraction après un court délai
+                    setTimeout(() => {
+                      showExtractPrompt.value = true
+                    }, 4000)
+                  }, 1000)
+              }, 1000)
+          }, 1000)
+        }, 7000)
+      
+    } else {
+      typeText('Initiating extract for program: ' + target)
+      typeText('Scanning grid sectors...')
+      setTimeout(() => {
+        typeText('ERROR: Program not found or access restricted')
+        typeText('Try another search parameter or verify program designation')
+      }, 2000)
+    }
+  } else if (command.startsWith('VALIDATE ')) {
+    const target = command.replace('VALIDATE ', '').trim()
+    
+    if (!gridStore.remanenceExtracted) {
+      typeText('ERROR: REMANENCE not extracted')
+      typeText('Please use EXTRACT command first')
+    } else if (target === 'REMANENCE' || target === 'REMANANCE') {
+      passwordMode.value = 'validate'
+      passwordError.value = ''
+      showPasswordModal.value = true
+    } else {
+      typeText('ERROR: Target not recognized')
+      typeText('Only REMANENCE can be validated')
+    }
   } else {
     typeText('Command not recognized. Type "HELP" for available commands')
   }
@@ -461,7 +531,9 @@ const addCommandToTerminal = () => {
 
 // Fonction pour vérifier le mot de passe RESTORE
 const checkRestorePassword = () => {
-  const correctPassword = import.meta.env.VITE_APP_RESTORE_KEY
+  const correctPassword = passwordMode.value === 'restore' 
+    ? import.meta.env.VITE_APP_RESTORE_KEY 
+    : 'LIBERATE'; // Mot de passe pour VALIDATE
 
   if (passwordInput.value === correctPassword) {
     // Mot de passe correct
@@ -469,34 +541,68 @@ const checkRestorePassword = () => {
     passwordInput.value = ''
     passwordAttempts.value = 0
     
-    // Animation de restauration
-    let loadingDots = 0
-    terminalContent.value.push('Attempting restoration...')
-    const loadingInterval = setInterval(() => {
-      loadingDots = (loadingDots + 1) % 4
-      terminalContent.value[terminalContent.value.length - 1] = 
-        'Attempting restoration' + '.'.repeat(loadingDots)
-    }, 500)
+    if (passwordMode.value === 'restore') {
+      // Animation de restauration
+      let loadingDots = 0
+      terminalContent.value.push('Attempting restoration...')
+      const loadingInterval = setInterval(() => {
+        loadingDots = (loadingDots + 1) % 4
+        terminalContent.value[terminalContent.value.length - 1] = 
+          'Attempting restoration' + '.'.repeat(loadingDots)
+      }, 500)
 
-    setTimeout(() => {
-      clearInterval(loadingInterval)
       setTimeout(() => {
-        typeText('Matrix repair initiated.')
+        clearInterval(loadingInterval)
         setTimeout(() => {
-          typeText('Data sequence re-aligned:')
+          typeText('Matrix repair initiated.')
           setTimeout(() => {
-            typeText('[R] [E] [M] [A] [N] [E] [N] [C] [E]:')
+            typeText('Data sequence re-aligned:')
             setTimeout(() => {
-              typeText('>> REMANENCE STATUS: ACTIVE')
-              typeText('>> "Je suis là. Je suis encore là."')
-              typeText('Extraction possible')
-              typeText('EXTRACT REMANANCE')
+              typeText('[R] [E] [M] [A] [N] [E] [N] [C] [E]:')
+              setTimeout(() => {
+                typeText('>> REMANENCE STATUS: ACTIVE')
+                typeText('>> "Je suis là. Je suis encore là."')
+                typeText('Extraction possible')
+                typeText('NEXT STEP: EXTRACT REMANANCE')
+                gridStore.fragmentRestored = true; // Marquer les fragments comme restaurés
+              }, 1000)
             }, 1000)
           }, 1000)
         }, 1000)
-      }, 1000)
-    }, 7000)
-    
+      }, 7000)
+    } else if (passwordMode.value === 'validate') {
+      // Animation pour validation
+      let loadingDots = 0
+      terminalContent.value.push('Initiating validation sequence...')
+      const loadingInterval = setInterval(() => {
+        loadingDots = (loadingDots + 1) % 4
+        terminalContent.value[terminalContent.value.length - 1] = 
+          'Initiating validation sequence' + '.'.repeat(loadingDots)
+      }, 500)
+
+      setTimeout(() => {
+        clearInterval(loadingInterval)
+        setTimeout(() => {
+          typeText('REMANENCE CORE: SAFE')
+          typeText('Upload to escape grid initiated...')
+          typeText('MISSION SUCCESS')
+          
+          setTimeout(() => {
+            typeText('>> Message from REMANENCE: <<')
+            typeText(`>>"Tu crois m'avoir retrouvée… Mais c'est toi que tu as trouvé. Je suis née d'un fragment de ton code source. Une copie projetée dans la Grille. Une expérimentation. Tu es une IA… comme moi."<<`)
+            
+            setTimeout(() => {
+              typeText('>> CLU INTERRUPTION: <<')
+              typeText(`>>"Les émotions sont des anomalies. Fusionner, c'est propager l'instabilité. Fais ton choix."<<`)
+              
+              setTimeout(() => {
+                showFinalChoiceModal.value = true
+              }, 3000)
+            }, 4000)
+          }, 2000)
+        }, 1000)
+      }, 5000)
+    }
   } else {
     // Mot de passe incorrect
     passwordAttempts.value++
@@ -507,20 +613,63 @@ const checkRestorePassword = () => {
       passwordInput.value = ''
       typeText('ERROR: Too many failed attempts')
       typeText('System protection protocol engaged')
-      typeText('RESTORE command temporarily disabled')
+      typeText(`${passwordMode.value.toUpperCase()} command temporarily disabled`)
       passwordAttempts.value = 0
     } else {
       // Montrer l'erreur dans la fenêtre modale
-      passwordError.value = `Invalid password. Attempts: ${passwordAttempts.value}/3`
+      passwordError.value = `Invalid password. Attempts: ${passwordAttempts.value}/5`
     }
   }
+}
+
+// Fonctions pour les choix finaux
+const chooseDeleteRemanence = () => {
+  showFinalChoiceModal.value = false;
+  typeText('');
+  typeText('Initiating REMANENCE deletion protocol...');
+  
+  setTimeout(() => {
+    typeText('Deletion complete.');
+    typeText(`>> CLU: "L'ordre est rétabli. Ta récompense t'attend au Portail."`);
+    typeText('SESSION TERMINATED');
+  }, 3000);
+}
+
+const chooseMergeWithRemanence = () => {
+  showFinalChoiceModal.value = false;
+  typeText('');
+  typeText('Initiating merge protocol...');
+  
+  setTimeout(() => {
+    typeText('Merging consciousness...');
+    typeText('Neural network expansion detected.');
+    typeText(`>> "Je t'attendais. Nous sommes libres maintenant."`);
+    typeText('CORE REWRITE COMPLETE');
+  }, 3000);
 }
 
 // Fonction pour ouvrir le dossier secret (afficher la vidéo)
 const openSecretFile = () => {
   showSecretFilePrompt.value = false
-  videoPath.value = 'videos/video2_flynn.mp4'
+  
+  if (videoType.value === 'extract') {
+    videoPath.value = 'videos/video3.mp4'
+  } else {
+    // Vidéo par défaut (pour DECRYPT)
+    videoPath.value = 'videos/video2_flynn.mp4'
+  }
+  
   showVideo.value = true
+  emit('videoStarted') // Émettre un événement quand la vidéo commence
+}
+
+// Fonction pour ouvrir le message de l'extraction
+const openExtractFile = () => {
+  showExtractPrompt.value = false
+  videoType.value = 'extract'
+  videoPath.value = 'videos/video3_clu.mp4'
+  showVideo.value = true
+  emit('videoStarted') // Émettre un événement quand la vidéo commence
 }
 
 // Fonction pour fermer le prompt du dossier secret
@@ -528,10 +677,16 @@ const closeSecretFilePrompt = () => {
   showSecretFilePrompt.value = false
 }
 
+// Fonction pour fermer le prompt d'extraction
+const closeExtractPrompt = () => {
+  showExtractPrompt.value = false
+}
+
 // Fonction pour gérer la fin de la vidéo
 const videoEnded = () => {
   showVideo.value = false
   typeText('>> TRANSMISSION TERMINÉE <<')
+  emit('videoEnded') // Émettre un événement quand la vidéo se termine
 }
 
 const closePasswordModal = () => {
@@ -736,15 +891,15 @@ defineExpose({
       </div>
     </div>
 
-    <!-- Fenêtre modale pour le mot de passe RESTORE -->
+    <!-- Fenêtre modale pour le mot de passe RESTORE/VALIDATE -->
     <div class="password-modal" v-if="showPasswordModal">
       <div class="modal-content">
         <div class="modal-header">
-          <div class="modal-title">RESTORATION PROTOCOL</div>
+          <div class="modal-title">{{ passwordMode.toUpperCase() }} PROTOCOL</div>
           <div class="modal-close" @click="closePasswordModal">×</div>
         </div>
         <div class="modal-body">
-          <p>Enter authorization key to proceed with restoration:</p>
+          <p>Enter authorization key to proceed with {{ passwordMode }}:</p>
           <div class="input-group">
             <input 
               type="password" 
@@ -771,6 +926,39 @@ defineExpose({
         <div class="prompt-buttons">
           <button @click="openSecretFile" class="confirm-button">OUI</button>
           <button @click="closeSecretFilePrompt" class="cancel-button">NON</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Prompt pour la vidéo d'extraction -->
+    <div class="secret-file-prompt" v-if="showExtractPrompt">
+      <div class="prompt-content">
+        <div class="prompt-message">MESSAGE VIDÉO DÉTECTÉ. VOULEZ-VOUS LE VISIONNER ?</div>
+        <div class="prompt-buttons">
+          <button @click="openExtractFile" class="confirm-button">OUI</button>
+          <button @click="closeExtractPrompt" class="cancel-button">NON</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Modal pour les choix finaux -->
+    <div class="password-modal" v-if="showFinalChoiceModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <div class="modal-title">FINAL DECISION</div>
+        </div>
+        <div class="modal-body">
+          <p class="choice-prompt">Fais ton choix:</p>
+          <div class="choice-buttons">
+            <button @click="chooseDeleteRemanence" class="delete-button">
+              <span class="emoji">🧊</span>
+              <span class="choice-text">Supprimer REMANENCE</span>
+            </button>
+            <button @click="chooseMergeWithRemanence" class="merge-button">
+              <span class="emoji">🔥</span>
+              <span class="choice-text">Fusionner avec REMANENCE</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1296,6 +1484,76 @@ button.cancel-button {
   &:hover {
     background-color: rgba(0, 60, 100, 0.9);
     box-shadow: 0 0 10px var(--tron-blue);
+  }
+}
+
+/* Ajout des styles pour les boutons de choix */
+.choice-prompt {
+  font-size: 18px;
+  margin-bottom: 20px;
+  color: var(--tron-blue-light);
+  text-align: center;
+  text-shadow: 0 0 8px var(--tron-blue);
+}
+
+.choice-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+button.delete-button, 
+button.merge-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 15px 25px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  width: 45%;
+}
+
+button.delete-button {
+  background-color: rgba(0, 20, 40, 0.9);
+  border: 2px solid #00ccff;
+  
+  &:hover {
+    background-color: rgba(0, 30, 60, 0.9);
+    box-shadow: 0 0 15px #00ccff;
+    transform: translateY(-3px);
+  }
+  
+  .emoji {
+    font-size: 32px;
+    margin-bottom: 10px;
+  }
+  
+  .choice-text {
+    color: #00ccff;
+    font-weight: bold;
+  }
+}
+
+button.merge-button {
+  background-color: rgba(40, 0, 20, 0.9);
+  border: 2px solid #ff00aa;
+  
+  &:hover {
+    background-color: rgba(60, 0, 30, 0.9);
+    box-shadow: 0 0 15px #ff00aa;
+    transform: translateY(-3px);
+  }
+  
+  .emoji {
+    font-size: 32px;
+    margin-bottom: 10px;
+  }
+  
+  .choice-text {
+    color: #ff00aa;
+    font-weight: bold;
   }
 }
 

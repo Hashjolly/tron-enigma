@@ -135,7 +135,7 @@ const startVideoWithSound = () => {
   introVideoRef.value.muted = false
   
   // Si la vidéo était déjà en cours, la redémarrer pour avoir le son depuis le début
-  introVideoRef.value.currentTime = 0
+  introVideoRef.value.currentTime = 109
   
   // Marquer l'autorisation audio comme accordée
   audioPermissionGranted.value = true
@@ -296,6 +296,7 @@ const toggleAudio = () => {
 
 // Fonction pour activer l'audio en réponse à une interaction utilisateur
 const enableAudio = () => {
+  console.log("hello")
   if (audioStore.autoplayBlocked) {
     audioStore.attemptAutoplay()
     // Force the audio to play without changing the isPlaying state

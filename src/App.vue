@@ -37,7 +37,7 @@ const mirrorGameRef = ref(null)
 
 // Référence à l'élément audio morse
 const morseAudioRef = ref<HTMLAudioElement | null>(null)
-const morseVolume = ref(0.1) // Volume initial très bas
+const morseVolume = ref(0.01) // Volume initial très bas
 const maxMorseVolume = 0.4 // Volume maximum réduit
 const volumeIncrementInterval = ref<number | null>(null)
 
@@ -89,8 +89,8 @@ const closeMirrorGame = () => {
   showMirrorGame.value = false;
   
   // Mettre à jour l'URL fictive pour retirer /NETMODE
-  if (fakeUrl.value.endsWith('/NETMODE')) {
-    fakeUrl.value = fakeUrl.value.replace('/NETMODE', '');
+  if (fakeUrl.value.endsWith('/netmode')) {
+    fakeUrl.value = fakeUrl.value.replace('/netmode', '');
   }
 }
 
@@ -135,7 +135,7 @@ const startVideoWithSound = () => {
   introVideoRef.value.muted = false
   
   // Si la vidéo était déjà en cours, la redémarrer pour avoir le son depuis le début
-  introVideoRef.value.currentTime = 109
+  introVideoRef.value.currentTime = 0
   
   // Marquer l'autorisation audio comme accordée
   audioPermissionGranted.value = true
@@ -175,7 +175,7 @@ const initMorseAudio = () => {
     })
   
   // Programmer l'augmentation progressive du volume (de 0.001 à 0.02 en 30min)
-  const totalTimeMs = 30 * 60 * 1000 // 30 minutes en millisecondes
+  const totalTimeMs = 45 * 60 * 1000 // 30 minutes en millisecondes
   const volumeRange = maxMorseVolume - morseVolume.value
   const updateIntervalMs = 30000 // Mise à jour toutes les 30 secondes
   const incrementPerInterval = volumeRange / (totalTimeMs / updateIntervalMs)

@@ -3,6 +3,7 @@ import { ref, onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { useGridStore } from '@/stores/gridStore'
 import { useWindowStore } from '@/stores/windowStore'
 import LogWindow from './LogWindow.vue'
+import DecodeGame from './DecodeGame.vue'
 
 const terminalContent = ref<string[]>([
   '',
@@ -17,6 +18,7 @@ const isMaximized = ref(false)
 const terminalPosition = ref({ x: 0, y: 0 })
 const isTyping = ref(false)
 const showLogWindow = ref(false)
+const showDecodeGame = ref(false)
 const previousSize = ref({ width: 800, height: 500 })
 const previousPosition = ref({ x: 50, y: 50 })
 
@@ -267,6 +269,11 @@ const addCommandToTerminal = () => {
     if (gridStore.remanenceExtracted) {
       typeText('- VALIDATE REMANENCE: Validate the program of your choice')
     }
+  } else if (command === 'DECODE CODE') {
+    typeText('Initiating vector decoding interface...')
+    setTimeout(() => {
+      showDecodeGame.value = true
+    }, 1000)
   } else if (command.includes('CLEAR')) {
     terminalContent.value = []
   } else if (command.includes('SYS INFO')) {
@@ -708,6 +715,10 @@ const closeLogWindow = () => {
   showLogWindow.value = false
 }
 
+const closeDecodeGame = () => {
+  showDecodeGame.value = false
+}
+
 const navigateHistory = (direction: 'up' | 'down') => {
   if (commandHistory.value.length === 0) return
   
@@ -991,6 +1002,9 @@ defineExpose({
   
   <!-- Fenêtre de log qui apparaît lors de la commande LOG BRADLEY -->
   <LogWindow v-if="showLogWindow" @close="closeLogWindow" />
+  
+  <!-- Fenêtre de décodage qui apparaît lors de la commande DECODE CODE -->
+  <DecodeGame v-if="showDecodeGame" @close="closeDecodeGame" />
 </template>
 
 <style scoped lang="scss">

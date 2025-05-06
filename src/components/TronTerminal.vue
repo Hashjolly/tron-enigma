@@ -228,7 +228,7 @@ const scrollToBottom = () => {
 }
 
 // Define emits for parent component communication
-const emit = defineEmits(['close', 'stopMorse', 'videoStarted', 'videoEnded'])
+const emit = defineEmits(['close', 'stopMorse', 'videoStarted', 'videoEnded', 'gameCompleted'])
 
 const addCommandToTerminal = () => {
   if (!commandInput.value.trim()) return
@@ -632,6 +632,11 @@ const chooseDeleteRemanence = () => {
     typeText('Deletion complete.');
     typeText(`>> CLU: "L'ordre est rétabli. Ta récompense t'attend au Portail."`);
     typeText('SESSION TERMINATED');
+    
+    // Émettre un événement pour signaler la fin du jeu
+    setTimeout(() => {
+      emit('gameCompleted', 'delete');
+    }, 2000);
   }, 3000);
 }
 
@@ -645,6 +650,11 @@ const chooseMergeWithRemanence = () => {
     typeText('Neural network expansion detected.');
     typeText(`>> "Je t'attendais. Nous sommes libres maintenant."`);
     typeText('CORE REWRITE COMPLETE');
+    
+    // Émettre un événement pour signaler la fin du jeu
+    setTimeout(() => {
+      emit('gameCompleted', 'merge');
+    }, 2000);
   }, 3000);
 }
 

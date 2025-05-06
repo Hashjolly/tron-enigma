@@ -48,6 +48,10 @@ const previousAudioState = ref({
   morseVolume: 0.1 // Ajout pour stocker le volume précédent du morse
 })
 
+// État pour l'écran de fin
+const showEndScreen = ref(false)
+const endCredits = ref('')
+
 // Fonction pour vérifier si l'URL contient /NETMODE
 const checkNetMode = () => {
   if (fakeUrl.value.endsWith('/netmode')) {
@@ -254,6 +258,37 @@ const handleVideoEnded = () => {
   resumeAllAudio()
 }
 
+// Fonction pour afficher l'écran de fin après avoir terminé le jeu
+const handleGameCompleted = (endingType: string) => {
+  // Arrêter tous les audios
+  if (morseAudioRef.value) {
+    morseAudioRef.value.pause();
+    morseAudioRef.value.currentTime = 0;
+  }
+
+  // Arrêter la musique ambiante
+  audioStore.pause();
+  
+  // Nettoyer les intervalles d'augmentation du volume
+  if (volumeIncrementInterval.value) {
+    clearInterval(volumeIncrementInterval.value);
+    volumeIncrementInterval.value = null;
+  }
+  
+  // Définir le message de fin en fonction du choix
+  endCredits.value = endingType === 'merge' ? 
+    'Vous avez fusionné avec REMANENCE' : 
+    'Vous avez supprimé REMANENCE';
+  
+  // Afficher l'écran de fin
+  showEndScreen.value = true;
+  
+  // Jouer la musique de fin
+  const endMusic = new Audio('/public/audio/End_titles.mp3');
+  endMusic.volume = 0.5;
+  endMusic.play().catch(err => console.error("Couldn't play end music:", err));
+}
+
 // Mettre en place un bouton audio dans la TaskBar
 const toggleAudio = () => {
   audioStore.togglePlayer()
@@ -375,11 +410,24 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
+    <!-- Écran de fin -->
+    <div v-if="showEndScreen" class="end-screen">
+      <div class="end-content">
+        <h1 class="end-title">Félicitations agentes</h1>
+        <p class="end-choice">{{ endCredits }}</p>
+        <h2 class="end-subtitle">_Fin de transmission_</h2>
+        <div class="end-credits">
+          <p>Crédits :</p>
+          <p>Hash, Nelson</p>
+        </div>
+      </div>
+    </div>
+
     <!-- Contenu principal de l'application -->
     <div class="tron-container" @click="enableAudio" :class="{ 
       'surge-mode': gridStore.isSurging, 
-      'hidden': showIntroVideo || showGlitchTransition,
-      'appear-animation': !showIntroVideo && !showGlitchTransition 
+      'hidden': showIntroVideo || showGlitchTransition || showEndScreen,
+      'appear-animation': !showIntroVideo && !showGlitchTransition && !showEndScreen
     }">
       <!-- Barre d'URL fictive -->
       <div class="fake-browser-bar">
@@ -422,6 +470,7 @@ onBeforeUnmount(() => {
           @stopMorse="stopMorseAudio"
           @videoStarted="handleVideoStarted"
           @videoEnded="handleVideoEnded"
+          @gameCompleted="handleGameCompleted"
         />
         <LogWindow 
           ref="logWindowRef"
@@ -1026,8 +1075,83 @@ a {
   80% { background-color: rgba(20, 40, 60, 0.3); }
 }
 
-@font-face {
-  font-family: 'Orbitron';
-  src: url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&display=swap');
+/* Styles pour l'écran de fin */
+.end-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #000;
+  z-index: 10000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  animation: fadeIn 2s ease;
+}
+
+.end-content {
+  text-align: center;
+  max-width: 800px;
+  padding: 20px;
+}
+
+.end-title {
+  color: #00ccff;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 48px;
+  text-shadow: 0 0 20px #00ccff, 0 0 40px rgba(0, 204, 255, 0.6);
+  margin-bottom: 20px;
+  animation: glowPulse 3s infinite alternate;
+}
+
+.end-subtitle {
+  color: #00ccff;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 36px;
+  text-shadow: 0 0 15px #00ccff;
+  margin-bottom: 60px;
+  opacity: 0;
+  animation: fadeInDelay 3s ease forwards;
+  animation-delay: 2s;
+}
+
+.end-choice {
+  color: #00ccff;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 24px;
+  margin-bottom: 40px;
+  opacity: 0;
+  animation: fadeInDelay 3s ease forwards;
+  animation-delay: 4s;
+}
+
+.end-credits {
+  color: #00ccff;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 20px;
+  margin-top: 100px;
+  opacity: 0;
+  animation: fadeInDelay 3s ease forwards;
+  animation-delay: 6s;
+  
+  p {
+    margin: 10px 0;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeInDelay {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes glowPulse {
+  from { text-shadow: 0 0 10px #00ccff, 0 0 20px rgba(0, 204, 255, 0.4); }
+  to { text-shadow: 0 0 20px #00ccff, 0 0 40px rgba(0, 204, 255, 0.8); }
 }
 </style>
